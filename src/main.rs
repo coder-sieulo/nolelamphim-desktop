@@ -656,14 +656,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(window) = window_weak.upgrade() {
                 window.set_active_page(page.clone());
                 let p = player.clone();
-                let is_th = window.get_theater_mode();
                 let page_str = page.to_string();
                 tokio::spawn(async move {
                     if page_str == "Player" {
-                        p.show_embedded(is_th).await;
+                        p.show_embedded().await;
                     } else {
                         p.hide_embedded().await;
                     }
+                });
+            }
+        });
+    }
+
+    // Responsive dynamic viewport geometry synchronization with native subwindow
+    {
+        let player = media_player.clone();
+        let win_weak = main_window.as_weak();
+        main_window.on_update_viewport_geometry(move |x_len, y_len, w_len, h_len| {
+            let p = player.clone();
+            if let Some(win) = win_weak.upgrade() {
+                let scale = win.window().scale_factor();
+                let x = (x_len * scale) as i32;
+                let y = (y_len * scale) as i32;
+                let w = (w_len * scale).max(100.0) as u32;
+                let h = (h_len * scale).max(100.0) as u32;
+                tokio::spawn(async move {
+                    p.update_viewport_rect(x, y, w, h).await;
                 });
             }
         });
@@ -1177,15 +1195,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Open Cinema Theater Mode (100% In-App)
     {
         let window_weak = main_window.as_weak();
-        let player = media_player.clone();
         main_window.on_open_fullscreen(move || {
             if let Some(win) = window_weak.upgrade() {
                 let is_theater = win.get_theater_mode();
-                tracing::info!("Cinema player theater mode toggled: {}", !is_theater);
-                let pl = player.clone();
-                tokio::spawn(async move {
-                    pl.update_viewport(!is_theater).await;
-                });
+                tracing::info!("Cinema player theater mode toggled: {}", is_theater);
+                win.invoke_recompute_viewport();
             }
         });
     }

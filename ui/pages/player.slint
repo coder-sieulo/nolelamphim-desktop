@@ -14,6 +14,7 @@ export component PlayerPage inherits Flickable {
     in-out property <int> volume-level: 85;
     in-out property <string> active-server: "Server VIP #1";
     in-out property <bool> theater-mode: false;
+    in property <length> window-height: 850px;
 
     callback back-clicked();
     callback toggle-play();
@@ -153,8 +154,8 @@ export component PlayerPage inherits Flickable {
         }
 
         // Main Cinema Screen Viewport (16:9 Cinematic Player)
-        Rectangle {
-            height: root.theater-mode ? 600px : 480px;
+        cinema-viewport := Rectangle {
+            height: root.theater-mode ? max(520px, root.window-height - 160px) : min(600px, max(420px, root.window-height - 380px));
             border-radius: Theme.radius-lg;
             background: #000000;
             border-width: 1px;

@@ -143,6 +143,7 @@ pub struct MediaPlayerService {
     active_stream: Arc<Mutex<Option<String>>>,
     active_title: Arc<Mutex<Option<(String, String)>>>,
     parent_window_id: Arc<Mutex<Option<u64>>>,
+    viewport_rect: Arc<Mutex<(i32, i32, u32, u32)>>,
     #[cfg(target_os = "linux")]
     embedded_child_window: Arc<Mutex<Option<Arc<x11_embed::X11ChildWindow>>>>,
 }
@@ -162,6 +163,7 @@ impl MediaPlayerService {
             active_stream: Arc::new(Mutex::new(None)),
             active_title: Arc::new(Mutex::new(None)),
             parent_window_id: Arc::new(Mutex::new(None)),
+            viewport_rect: Arc::new(Mutex::new((248, 148, 836, 480))),
             #[cfg(target_os = "linux")]
             embedded_child_window: Arc::new(Mutex::new(None)),
         }
@@ -285,18 +287,13 @@ impl MediaPlayerService {
                 }
 
                 if let Some(parent_xid) = parent_id {
-                    let is_theater = win_weak.upgrade().map(|w| w.get_theater_mode()).unwrap_or(false);
-                    let (x, y, w, h) = if is_theater {
-                        (12, 54, 1376, 740)
-                    } else {
-                        (248, 142, 836, 480)
-                    };
+                    let (x, y, w, h) = *self.viewport_rect.lock().await;
 
                     let mut win_guard = self.embedded_child_window.lock().await;
                     if win_guard.is_none() {
                         if let Some(child_win) = x11_embed::X11ChildWindow::create(parent_xid, x, y, w, h) {
                             let wid = child_win.child_xid;
-                            tracing::info!("Created embedded X11 child window ID {} inside parent {}", wid, parent_xid);
+                            tracing::info!("Created embedded X11 child window ID {} at ({}, {}, {}, {}) inside parent {}", wid, x, y, w, h, parent_xid);
                             cmd.arg(format!("--wid={}", wid));
                             *win_guard = Some(Arc::new(child_win));
                         }
@@ -374,20 +371,34 @@ impl MediaPlayerService {
         }
     }
 
-    /// Resizes and repositions the embedded video viewport inside the app
-    pub async fn update_viewport(&self, is_theater: bool) {
+    /// Dynamically updates the exact pixel geometry (x, y, w, h) of the embedded video subwindow
+    pub async fn update_viewport_rect(&self, x: i32, y: i32, w: u32, h: u32) {
+        {
+            let mut rect = self.viewport_rect.lock().await;
+            *rect = (x, y, w, h);
+        }
+        tracing::debug!("MediaPlayerService viewport rect updated to ({}, {}, {}, {})", x, y, w, h);
+
         #[cfg(target_os = "linux")]
         {
-            let (x, y, w, h) = if is_theater {
-                (12, 54, 1376, 740)
-            } else {
-                (248, 142, 836, 480)
-            };
             let guard = self.embedded_child_window.lock().await;
             if let Some(ref child_win) = *guard {
                 child_win.resize(x, y, w, h);
                 child_win.show();
             }
+        }
+    }
+
+    /// Resizes and repositions the embedded video viewport inside the app
+    pub async fn update_viewport(&self, is_theater: bool) {
+        #[cfg(target_os = "linux")]
+        {
+            let (x, y, w, h) = if is_theater {
+                (12, 72, 1376, 740)
+            } else {
+                (248, 148, 836, 480)
+            };
+            self.update_viewport_rect(x, y, w, h).await;
         }
     }
 
@@ -404,8 +415,16 @@ impl MediaPlayerService {
     }
 
     /// Shows embedded video when navigating to player
-    pub async fn show_embedded(&self, is_theater: bool) {
-        self.update_viewport(is_theater).await;
+    pub async fn show_embedded(&self) {
+        #[cfg(target_os = "linux")]
+        {
+            let (x, y, w, h) = *self.viewport_rect.lock().await;
+            let guard = self.embedded_child_window.lock().await;
+            if let Some(ref child_win) = *guard {
+                child_win.resize(x, y, w, h);
+                child_win.show();
+            }
+        }
     }
 
     /// Toggles play / pause state

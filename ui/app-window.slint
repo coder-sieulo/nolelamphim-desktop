@@ -76,6 +76,33 @@ export component AppWindow inherits Window {
     callback next-episode();
     callback toggle-play();
     callback change-volume(int);
+    callback update-viewport-geometry(length, length, length, length);
+
+    public function recompute-viewport() {
+        if (root.active-page == "Player") {
+            if (root.theater-mode) {
+                root.update-viewport-geometry(
+                    12px,
+                    72px,
+                    root.width - 24px,
+                    max(520px, root.height - 160px)
+                );
+            } else {
+                root.update-viewport-geometry(
+                    248px,
+                    148px,
+                    root.width - 562px,
+                    min(600px, max(420px, root.height - 380px))
+                );
+            }
+        }
+    }
+
+    init => { root.recompute-viewport(); }
+    changed width => { root.recompute-viewport(); }
+    changed height => { root.recompute-viewport(); }
+    changed theater-mode => { root.recompute-viewport(); }
+    changed active-page => { root.recompute-viewport(); }
 
     HorizontalLayout {
         // Left Column: Navigation Sidebar (224px)
@@ -189,6 +216,7 @@ export component AppWindow inherits Window {
                 movie: root.current-playing-movie;
                 current-episode: root.current-episode;
                 episodes: root.current-episodes;
+                window-height: root.height;
                 is-playing <=> root.is-playing;
                 theater-mode <=> root.theater-mode;
                 progress-seconds <=> root.player-progress-seconds;
