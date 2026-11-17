@@ -50,10 +50,24 @@ impl ImageCacheService {
 
         let file_path = self.cache_dir.join(self.url_to_filename(url));
         if file_path.exists() {
-            Some(file_path)
-        } else {
-            None
+            return Some(file_path);
         }
+
+        // Check alternate jpg/webp file if transcoded or cached under alternate extension
+        let mut alt_file = file_path.clone();
+        if file_path.extension().and_then(|s| s.to_str()) == Some("webp") {
+            alt_file.set_extension("jpg");
+            if alt_file.exists() {
+                return Some(alt_file);
+            }
+        } else if file_path.extension().and_then(|s| s.to_str()) == Some("jpg") {
+            alt_file.set_extension("webp");
+            if alt_file.exists() {
+                return Some(alt_file);
+            }
+        }
+
+        None
     }
 
     pub async fn fetch_image(&self, url: &str) -> Result<PathBuf, String> {
@@ -61,10 +75,11 @@ impl ImageCacheService {
             return Err("Image caching disabled or empty URL".to_string());
         }
 
-        let target_path = self.cache_dir.join(self.url_to_filename(url));
-        if target_path.exists() {
-            return Ok(target_path);
+        if let Some(existing) = self.get_cached_path(url) {
+            return Ok(existing);
         }
+
+        let target_path = self.cache_dir.join(self.url_to_filename(url));
 
         tracing::debug!("Downloading image to cache: {}", url);
         let resp = self
@@ -84,6 +99,18 @@ impl ImageCacheService {
             .map_err(|e| format!("Failed to read image bytes: {}", e))?;
 
         let _ = fs::create_dir_all(&self.cache_dir);
+
+        // If WebP, transcode to JPEG for fast native Slint loading
+        if url.ends_with(".webp") || target_path.extension().and_then(|s| s.to_str()) == Some("webp") {
+            if let Ok(dyn_img) = image::load_from_memory(&bytes) {
+                let mut jpg_path = target_path.clone();
+                jpg_path.set_extension("jpg");
+                if dyn_img.save_with_format(&jpg_path, image::ImageFormat::Jpeg).is_ok() {
+                    return Ok(jpg_path);
+                }
+            }
+        }
+
         fs::write(&target_path, &bytes)
             .map_err(|e| format!("Failed to write cached image to disk: {}", e))?;
 

@@ -55,3 +55,20 @@ async fn test_storage_history() {
     assert_eq!(hist2.first().unwrap().slug, "movie-2");
     assert_eq!(hist2.first().unwrap().progress, 65);
 }
+
+#[test]
+fn test_webp_image_loading() {
+    use nolelamphim_desktop::models::load_slint_image_from_path;
+    use std::path::PathBuf;
+
+    // Check existing cached WebP file if present
+    let cached_webp = PathBuf::from("/home/viennn/.cache/desktop/images/248e32faa43dd454.webp");
+    if cached_webp.exists() {
+        let img = load_slint_image_from_path(&cached_webp);
+        assert!(img.is_some(), "WebP image should load successfully into slint::Image");
+    }
+
+    // Non-existent file should gracefully return None
+    let dummy = PathBuf::from("/non/existent/path.webp");
+    assert!(load_slint_image_from_path(&dummy).is_none());
+}
