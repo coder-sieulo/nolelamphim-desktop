@@ -79,7 +79,7 @@ Dự án hướng đến ba nền tảng Windows, Linux và macOS, sử dụng m
 | macOS | Intel | `x86_64-apple-darwin` |
 | macOS | Apple Silicon | `aarch64-apple-darwin` |
 
-Development platform ban đầu: **Windows 10/11**.
+Development platform ban đầu: **Linux x86_64** (`x86_64-unknown-linux-gnu`).
 
 ---
 
@@ -358,43 +358,35 @@ UI cần xử lý đầy đủ các trạng thái trên, tránh để ứng dụ
 |---|---|
 | Rustup | Rust toolchain |
 | Cargo | Build system |
-| Visual Studio Build Tools | Windows C++ build tools |
-| Windows SDK | Windows development |
+| GCC / Clang / build-essential | Linux C/C++ build tools |
+| System GUI libraries (fontconfig, xkbcommon, etc.) | Slint Linux rendering dependencies |
 | VS Code / RustRover | IDE |
 | Git | Version control |
 
-### Windows Setup
+### Linux Setup (Ubuntu / Debian)
 
-**Step 1: Install Rust**
+**Step 1: Install system build dependencies for Slint**
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config libfontconfig1-dev libxkbcommon-dev libxkbcommon-x11-dev
+```
+
+**Step 2: Install Rust & target**
 
 Tải Rust tại:
 
 https://rustup.rs/
 
-Kiểm tra cài đặt:
+Cài đặt target Linux:
 
-```powershell
-rustc --version
-cargo --version
+```bash
+rustup target add x86_64-unknown-linux-gnu
 ```
 
-**Step 2: Install Visual Studio Build Tools**
+**Step 3: Verify environment**
 
-Cài đặt Visual Studio Build Tools với:
-
-- Desktop development with C++
-- MSVC compiler
-- Windows SDK
-
-**Step 3: Install Windows target**
-
-```powershell
-rustup target add x86_64-pc-windows-msvc
-```
-
-**Step 4: Verify environment**
-
-```powershell
+```bash
 rustup show
 cargo --version
 rustc --version
@@ -406,34 +398,58 @@ rustc --version
 
 ### Clone repository
 
-```powershell
+```bash
 git clone <YOUR_GIT_REPOSITORY>
 cd Nolelamphim-desktop
 ```
 
-### Check project
+### Kiểm tra cú pháp (Check)
 
-```powershell
+```bash
 cargo check
 ```
 
-### Run application
+### Lệnh chạy ứng dụng (Run)
 
-```powershell
-cargo run
-```
+- **Chạy trực tiếp chế độ phát triển (Development mode)**:
+  ```bash
+  cargo run
+  ```
 
-### Build release
+- **Chạy chế độ tối ưu (Release mode)**:
+  ```bash
+  cargo run --release
+  ```
 
-```powershell
-cargo build --release
-```
+- **Chạy với log chi tiết (Debug logging)**:
+  ```bash
+  RUST_LOG=debug cargo run
+  ```
 
-Windows executable dự kiến:
+### Lệnh đóng gói và biên dịch (Build)
 
-```text
-target/release/nolelamphim-desktop.exe
-```
+- **Biên dịch bản Debug (nhanh)**:
+  ```bash
+  cargo build
+  ```
+  File thực thi sinh ra tại:
+  ```bash
+  ./target/debug/nolelamphim-desktop
+  ```
+
+- **Biên dịch bản Release (tối ưu hóa hiệu năng cao nhất)**:
+  ```bash
+  cargo build --release
+  ```
+  File thực thi sinh ra tại:
+  ```bash
+  ./target/release/nolelamphim-desktop
+  ```
+
+- **Chạy trực tiếp file nhị phân đã build**:
+  ```bash
+  ./target/release/nolelamphim-desktop
+  ```
 
 ---
 
@@ -590,18 +606,18 @@ chore: update dependencies
 
 MVP được xem là hoàn thành khi:
 
-- [ ] Ứng dụng chạy ổn định trên Windows.
+- [ ] Ứng dụng chạy ổn định trên Linux (`x86_64-unknown-linux-gnu`).
 - [ ] Có giao diện Home hoàn chỉnh.
 - [ ] Có trang Discover.
 - [ ] Có chức năng Search.
 - [ ] Có trang Movie Detail.
-- [ ] Kết nối được API hiện có.
+- [ ] Kết nối được cả 3 hệ thống API (PhimAPI, Nguồn C, Vsmov).
 - [ ] Hiển thị poster và thông tin phim.
 - [ ] Có Loading, Error và Empty states.
 - [ ] Không làm treo UI khi API phản hồi chậm.
 - [ ] Có thể build Release.
 
-Sau MVP, tiếp tục kiểm thử và hoàn thiện Linux/macOS.
+Sau MVP, tiếp tục kiểm thử và hoàn thiện Windows/macOS.
 
 ---
 

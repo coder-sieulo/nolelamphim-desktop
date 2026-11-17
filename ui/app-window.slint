@@ -1,0 +1,46 @@
+import { Theme } from "themes/theme.slint";
+
+export component AppWindow inherits Window {
+    title: "Nolelamphim — Cinematic Movie Discovery";
+    preferred-width: 1400px;
+    preferred-height: 860px;
+    min-width: 1024px;
+    min-height: 680px;
+    background: Theme.background;
+
+    in-out property <string> active-page: "Home";
+    in-out property <string> current-provider: "PhimAPI";
+
+    callback navigate(string);
+    callback search-query(string);
+
+    HorizontalLayout {
+        // Minimal layout for Phase 1 verification
+        VerticalLayout {
+            alignment: center;
+            spacing: 16px;
+
+            Text {
+                text: "NOLELAMPHIM DESKTOP";
+                color: Theme.primary;
+                font-size: 28px;
+                font-weight: 700;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: "Liquid Glass Cinematic Discovery — Powered by Rust & Slint";
+                color: Theme.text-secondary;
+                font-size: 14px;
+                horizontal-alignment: center;
+            }
+
+            Text {
+                text: "Current API Provider: " + root.current-provider;
+                color: Theme.text-muted;
+                font-size: 12px;
+                horizontal-alignment: center;
+            }
+        }
+    }
+}
