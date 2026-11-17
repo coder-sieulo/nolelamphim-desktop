@@ -15,62 +15,54 @@ export component Topbar inherits Rectangle {
 
         // Search Bar (Pill with glass effect & fluid auto layout)
         search-box := Rectangle {
-            horizontal-stretch: 1;
-            max-width: 640px;
-            min-width: 220px;
+            width: 580px;
             height: 42px;
             border-radius: 21px;
             background: Theme.panel;
             border-width: 1px;
             border-color: search-input.has-focus ? Theme.primary.with-alpha(0.6) : (root.is-loading ? Theme.primary-light.with-alpha(0.4) : Theme.border);
 
-            // Click anywhere on the search box background to focus
-            box-touch := TouchArea {
-                clicked => {
-                    search-input.focus();
-                }
-            }
-
             HorizontalLayout {
                 padding-left: 14px;
-                padding-right: 12px;
+                padding-right: 8px;
                 spacing: 10px;
-                alignment: center;
 
-                // Search Icon Button
-                Rectangle {
-                    width: 28px;
-                    height: 28px;
-                    border-radius: 14px;
-                    background: icon-touch.has-hover ? #ffffff1e : #00000000;
+                // 1. Search Icon Button
+                VerticalLayout {
+                    alignment: center;
+                    width: 24px;
 
-                    Text {
-                        text: root.is-loading ? "⏳" : "🔍";
-                        font-size: 14px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
+                    Rectangle {
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 12px;
+                        background: icon-touch.has-hover ? #ffffff1e : #00000000;
 
-                    icon-touch := TouchArea {
-                        clicked => {
-                            if root.search-text != "" {
-                                root.search-submitted(root.search-text);
-                            } else {
-                                search-input.focus();
+                        Text {
+                            text: root.is-loading ? "⏳" : "🔍";
+                            font-size: 14px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        icon-touch := TouchArea {
+                            clicked => {
+                                if root.search-text != "" {
+                                    root.search-submitted(root.search-text);
+                                } else {
+                                    search-input.focus();
+                                }
                             }
                         }
                     }
                 }
 
-                // Overlapping Input and Placeholder
-                input-container := Rectangle {
+                // 2. Middle Input and Placeholder (Fluid Stretch)
+                input-area := Rectangle {
                     horizontal-stretch: 1;
-                    height: 100%;
                     clip: true;
 
                     if root.search-text == "" : Text {
-                        x: 0;
-                        y: 0;
                         width: 100%;
                         height: 100%;
                         text: "Tìm kiếm phim, diễn viên, thể loại...";
@@ -80,8 +72,6 @@ export component Topbar inherits Rectangle {
                     }
 
                     search-input := TextInput {
-                        x: 0;
-                        y: 0;
                         width: 100%;
                         height: 100%;
                         text <=> root.search-text;
@@ -99,57 +89,66 @@ export component Topbar inherits Rectangle {
                     }
                 }
 
-                // Clear button when search query is entered
-                if root.search-text != "" : Rectangle {
+                // 3. Clear button when search query is entered
+                if root.search-text != "" : VerticalLayout {
+                    alignment: center;
                     width: 22px;
-                    height: 22px;
-                    border-radius: 11px;
-                    background: clear-touch.has-hover ? #ffffff2e : #ffffff14;
 
-                    Text {
-                        text: "✕";
-                        font-size: 10px;
-                        color: Theme.text-primary;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
+                    Rectangle {
+                        width: 22px;
+                        height: 22px;
+                        border-radius: 11px;
+                        background: clear-touch.has-hover ? #ffffff2e : #ffffff14;
 
-                    clear-touch := TouchArea {
-                        clicked => {
-                            root.search-text = "";
-                            root.clear-search();
+                        Text {
+                            text: "✕";
+                            font-size: 10px;
+                            color: Theme.text-primary;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        clear-touch := TouchArea {
+                            clicked => {
+                                root.search-text = "";
+                                root.clear-search();
+                            }
                         }
                     }
                 }
 
-                // Clickable Search Submit Badge
-                Rectangle {
-                    height: 26px;
-                    border-radius: 13px;
-                    background: enter-touch.has-hover ? Theme.primary.with-alpha(0.35) : (root.is-loading ? Theme.primary.with-alpha(0.2) : (root.search-text != "" ? Theme.primary.with-alpha(0.18) : #ffffff0e));
-                    border-width: 1px;
-                    border-color: root.search-text != "" ? Theme.primary.with-alpha(0.5) : #ffffff18;
+                // 4. Clickable Search Submit Badge Button
+                VerticalLayout {
+                    alignment: center;
 
-                    HorizontalLayout {
-                        padding-left: 10px;
-                        padding-right: 10px;
-                        alignment: center;
+                    submit-btn := Rectangle {
+                        height: 28px;
+                        border-radius: 14px;
+                        background: enter-touch.has-hover ? Theme.primary.with-alpha(0.35) : (root.is-loading ? Theme.primary.with-alpha(0.2) : (root.search-text != "" ? Theme.primary.with-alpha(0.22) : #ffffff0e));
+                        border-width: 1px;
+                        border-color: root.search-text != "" ? Theme.primary.with-alpha(0.55) : #ffffff18;
 
-                        Text {
-                            text: root.is-loading ? "Đang tìm..." : "Tìm kiếm ↵";
-                            color: root.search-text != "" ? Theme.primary-light : Theme.text-muted;
-                            font-size: 10px;
-                            font-weight: 700;
-                            vertical-alignment: center;
+                        HorizontalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            alignment: center;
+
+                            Text {
+                                text: root.is-loading ? "Đang tìm..." : "Tìm kiếm ↵";
+                                color: root.search-text != "" ? Theme.primary-light : Theme.text-muted;
+                                font-size: 11px;
+                                font-weight: 700;
+                                vertical-alignment: center;
+                            }
                         }
-                    }
 
-                    enter-touch := TouchArea {
-                        clicked => {
-                            if root.search-text != "" {
-                                root.search-submitted(root.search-text);
-                            } else {
-                                search-input.focus();
+                        enter-touch := TouchArea {
+                            clicked => {
+                                if root.search-text != "" {
+                                    root.search-submitted(root.search-text);
+                                } else {
+                                    search-input.focus();
+                                }
                             }
                         }
                     }
