@@ -1,0 +1,187 @@
+import { Theme } from "../themes/theme.slint";
+import { MovieItem } from "../models.slint";
+
+export component MovieCard inherits Rectangle {
+    in property <MovieItem> item;
+    
+    callback clicked();
+    callback play-clicked();
+    callback save-clicked();
+
+    width: 160px;
+    height: 275px;
+
+    VerticalLayout {
+        spacing: 8px;
+        alignment: start;
+
+        // Poster Container
+        poster-box := Rectangle {
+            width: 160px;
+            height: 228px;
+            background: Theme.card-bg;
+            border-radius: Theme.radius-md;
+            border-width: 1px;
+            border-color: touch.has-hover ? Theme.border-accent : Theme.border;
+            clip: true;
+
+            // Fallback / Poster Image
+            Image {
+                width: 100%;
+                height: 100%;
+                source: @image-url("../../assets/images/poster_placeholder.png");
+                image-fit: cover;
+            }
+
+            // Dark vignette gradient overlay
+            Rectangle {
+                y: parent.height * 0.4;
+                width: 100%;
+                height: parent.height * 0.6;
+                background: @linear-gradient(180deg, #00000000 0%, #000000dd 100%);
+            }
+
+            // Rank Badge (if item.rank > 0)
+            if item.rank > 0 : Rectangle {
+                x: 8px;
+                y: 8px;
+                height: 20px;
+                border-radius: 4px;
+                background: @linear-gradient(120deg, Theme.primary-light 0%, Theme.primary 100%);
+                HorizontalLayout {
+                    padding-left: 6px;
+                    padding-right: 6px;
+                    alignment: center;
+                    Text {
+                        text: item.rank;
+                        color: Theme.text-dark;
+                        font-size: 10px;
+                        font-weight: 800;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // Quality Badge (e.g. HD / Vietsub)
+            if item.quality != "" : Rectangle {
+                x: item.rank > 0 ? 34px : 8px;
+                y: 8px;
+                height: 20px;
+                border-radius: 4px;
+                background: #00000099;
+                border-width: 1px;
+                border-color: Theme.border;
+                HorizontalLayout {
+                    padding-left: 5px;
+                    padding-right: 5px;
+                    alignment: center;
+                    Text {
+                        text: item.quality;
+                        color: Theme.text-primary;
+                        font-size: 9px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            // Action Buttons Overlay on Hover
+            if touch.has-hover : Rectangle {
+                width: 100%;
+                height: 100%;
+                background: #00000044;
+
+                HorizontalLayout {
+                    alignment: end;
+                    padding-right: 8px;
+                    padding-bottom: 8px;
+                    spacing: 6px;
+
+                    // Play Button
+                    play-btn := Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: #ffffffee;
+                        
+                        Text {
+                            text: "▶";
+                            font-size: 12px;
+                            color: Theme.text-dark;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.play-clicked(); }
+                        }
+                    }
+
+                    // Save / Watchlist Button
+                    save-btn := Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: item.is_saved ? Theme.primary : #ffffffbb;
+
+                        Text {
+                            text: item.is_saved ? "♥" : "♡";
+                            font-size: 14px;
+                            color: item.is_saved ? Theme.text-primary : Theme.text-dark;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => { root.save-clicked(); }
+                        }
+                    }
+                }
+            }
+
+            touch := TouchArea {
+                clicked => { root.clicked(); }
+            }
+        }
+
+        // Movie Meta (Title, Year, Genre, Rating)
+        VerticalLayout {
+            spacing: 3px;
+            padding-left: 2px;
+            padding-right: 2px;
+
+            Text {
+                text: item.title;
+                color: touch.has-hover ? Theme.primary-light : Theme.text-primary;
+                font-size: 12px;
+                font-weight: 700;
+                overflow: elide;
+            }
+
+            HorizontalLayout {
+                spacing: 4px;
+                alignment: start;
+
+                Text {
+                    text: item.year != "" ? item.year + " · " : "";
+                    color: Theme.text-muted;
+                    font-size: 10px;
+                }
+
+                Text {
+                    text: item.genre;
+                    color: Theme.text-muted;
+                    font-size: 10px;
+                    overflow: elide;
+                }
+
+                if item.rating != "" : Text {
+                    text: " ★ " + item.rating;
+                    color: Theme.rating-star;
+                    font-size: 10px;
+                    font-weight: 600;
+                }
+            }
+        }
+    }
+}

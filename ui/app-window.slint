@@ -1,45 +1,159 @@
 import { Theme } from "themes/theme.slint";
+import { MovieItem, PersonItem, EpisodeItem, GenreFilterItem } from "models.slint";
+import { Sidebar } from "components/sidebar.slint";
+import { Topbar } from "components/topbar.slint";
+import { RightPanel } from "components/right-panel.slint";
+import { HomePage } from "pages/home.slint";
+import { DiscoverPage } from "pages/discover.slint";
+import { MovieDetailPage } from "pages/movie-detail.slint";
+import { LibraryPage } from "pages/library.slint";
 
 export component AppWindow inherits Window {
     title: "Nolelamphim — Cinematic Movie Discovery";
     preferred-width: 1400px;
-    preferred-height: 860px;
-    min-width: 1024px;
-    min-height: 680px;
+    preferred-height: 880px;
+    min-width: 1080px;
+    min-height: 720px;
     background: Theme.background;
 
+    // Navigation State
     in-out property <string> active-page: "Home";
     in-out property <string> current-provider: "PhimAPI";
+    in-out property <string> search-query-text: "";
 
+    // Data Models
+    in property <MovieItem> hero-movie;
+    in property <[MovieItem]> trending-movies;
+    in property <[MovieItem]> continue-movies;
+    in property <[MovieItem]> mood-movies;
+    in property <[MovieItem]> discover-movies;
+    in property <[GenreFilterItem]> discover-genres;
+    in property <[MovieItem]> library-saved-movies;
+    in property <[MovieItem]> library-history-movies;
+    in property <[MovieItem]> right-panel-suggestions;
+    in property <MovieItem> current-playing-movie;
+    in property <bool> is-playing: false;
+
+    // Detail Page Data
+    in property <MovieItem> detail-movie;
+    in property <string> detail-synopsis;
+    in property <string> detail-director;
+    in property <[PersonItem]> detail-actors;
+    in property <[EpisodeItem]> detail-episodes;
+    in property <[string]> detail-keywords;
+
+    // Callbacks to Rust Backend
     callback navigate(string);
     callback search-query(string);
+    callback select-movie(string);
+    callback play-movie(string);
+    callback play-episode(EpisodeItem);
+    callback toggle-watchlist(string);
+    callback change-provider(string);
+    callback filter-genre(string);
+    callback filter-type(string);
+    callback change-page(int);
 
     HorizontalLayout {
-        // Minimal layout for Phase 1 verification
+        // Left Column: Navigation Sidebar (224px)
+        Sidebar {
+            active-page <=> root.active-page;
+            current-provider <=> root.current-provider;
+            navigate(page) => {
+                root.active-page = page;
+                root.navigate(page);
+            }
+            change-provider(p) => {
+                root.current-provider = p;
+                root.change-provider(p);
+            }
+        }
+
+        // Center Column: Main Content (Fluid)
         VerticalLayout {
-            alignment: center;
+            padding-top: 18px;
+            padding-bottom: 18px;
+            padding-left: 24px;
+            padding-right: 24px;
             spacing: 16px;
+            horizontal-stretch: 1;
 
-            Text {
-                text: "NOLELAMPHIM DESKTOP";
-                color: Theme.primary;
-                font-size: 28px;
-                font-weight: 700;
-                horizontal-alignment: center;
+            // Topbar
+            Topbar {
+                search-text <=> root.search-query-text;
+                search-changed(q) => {
+                    root.search-query(q);
+                    if (q != "" && root.active-page != "Discover") {
+                        root.active-page = "Discover";
+                    }
+                }
+                search-submitted(q) => {
+                    root.search-query(q);
+                    root.active-page = "Discover";
+                }
             }
 
-            Text {
-                text: "Liquid Glass Cinematic Discovery — Powered by Rust & Slint";
-                color: Theme.text-secondary;
-                font-size: 14px;
-                horizontal-alignment: center;
+            // View Switcher
+            if root.active-page == "Home" : HomePage {
+                featured-movie: root.hero-movie;
+                trending-movies: root.trending-movies;
+                continue-movies: root.continue-movies;
+                mood-movies: root.mood-movies;
+                movie-selected(slug) => { root.select-movie(slug); }
+                play-movie(slug) => { root.play-movie(slug); }
+                toggle-save(slug) => { root.toggle-watchlist(slug); }
+                see-all(type) => { root.active-page = "Discover"; }
             }
 
-            Text {
-                text: "Current API Provider: " + root.current-provider;
-                color: Theme.text-muted;
-                font-size: 12px;
-                horizontal-alignment: center;
+            if root.active-page == "Discover" : DiscoverPage {
+                movies: root.discover-movies;
+                genres: root.discover-genres;
+                genre-selected(slug) => { root.filter-genre(slug); }
+                type-selected(t) => { root.filter-type(t); }
+                movie-selected(slug) => { root.select-movie(slug); }
+                play-movie(slug) => { root.play-movie(slug); }
+                toggle-save(slug) => { root.toggle-watchlist(slug); }
+                page-changed(p) => { root.change-page(p); }
+            }
+
+            if root.active-page == "Detail" : MovieDetailPage {
+                movie: root.detail-movie;
+                synopsis: root.detail-synopsis;
+                director: root.detail-director;
+                actors: root.detail-actors;
+                episodes: root.detail-episodes;
+                keywords: root.detail-keywords;
+                back-clicked => { root.active-page = "Home"; }
+                play-episode(ep) => { root.play-episode(ep); }
+                toggle-save(slug) => { root.toggle-watchlist(slug); }
+                keyword-clicked(kw) => {
+                    root.search-query-text = kw;
+                    root.search-query(kw);
+                    root.active-page = "Discover";
+                }
+            }
+
+            if root.active-page == "Library" : LibraryPage {
+                saved-movies: root.library-saved-movies;
+                history-movies: root.library-history-movies;
+                movie-selected(slug) => { root.select-movie(slug); }
+                play-movie(slug) => { root.play-movie(slug); }
+                toggle-save(slug) => { root.toggle-watchlist(slug); }
+            }
+        }
+
+        // Right Column: Widgets & Mini-Player (290px)
+        RightPanel {
+            suggestions: root.right-panel-suggestions;
+            current-playing: root.current-playing-movie;
+            is-playing: root.is-playing;
+            movie-selected(slug) => { root.select-movie(slug); }
+            genre-selected(g) => {
+                root.active-page = "Discover";
+                root.filter-genre(g);
+            }
+            toggle-play => {
+                root.play-movie(root.current-playing-movie.slug);
             }
         }
     }

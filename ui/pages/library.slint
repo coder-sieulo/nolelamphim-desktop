@@ -1,0 +1,133 @@
+import { Theme } from "../themes/theme.slint";
+import { MovieItem } from "../models.slint";
+import { MovieCard } from "../components/movie-card.slint";
+
+export component LibraryPage inherits Flickable {
+    in property <[MovieItem]> saved-movies;
+    in property <[MovieItem]> history-movies;
+    in-out property <string> active-tab: "saved";
+
+    callback movie-selected(string);
+    callback play-movie(string);
+    callback toggle-save(string);
+    callback tab-changed(string);
+
+    viewport-width: self.width;
+
+    VerticalLayout {
+        padding-top: 10px;
+        padding-bottom: 40px;
+        spacing: 24px;
+
+        // Title
+        VerticalLayout {
+            spacing: 6px;
+
+            Text {
+                text: "YOUR PERSONAL CINEMA";
+                color: Theme.primary-light;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 2.5px;
+            }
+
+            Text {
+                text: "Your Library";
+                color: Theme.text-primary;
+                font-size: 32px;
+                font-weight: 800;
+            }
+
+            Text {
+                text: "Easily manage your saved favorites and continue your unfinished stories.";
+                color: Theme.text-muted;
+                font-size: 13px;
+            }
+        }
+
+        // Library Tabs
+        HorizontalLayout {
+            spacing: 12px;
+
+            Rectangle {
+                height: 36px;
+                border-radius: 18px;
+                background: root.active-tab == "saved" ? Theme.primary.with-alpha(0.25) : #ffffff0c;
+                border-width: 1px;
+                border-color: root.active-tab == "saved" ? Theme.primary : Theme.border;
+
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    Text { text: "♥ Phim Yêu Thích (" + root.saved-movies.length + ")"; font-size: 12px; font-weight: 600; color: root.active-tab == "saved" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                }
+                TouchArea { clicked => { root.active-tab = "saved"; root.tab-changed("saved"); } }
+            }
+
+            Rectangle {
+                height: 36px;
+                border-radius: 18px;
+                background: root.active-tab == "history" ? Theme.primary.with-alpha(0.25) : #ffffff0c;
+                border-width: 1px;
+                border-color: root.active-tab == "history" ? Theme.primary : Theme.border;
+
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    Text { text: "🕒 Lịch Sử Xem (" + root.history-movies.length + ")"; font-size: 12px; font-weight: 600; color: root.active-tab == "history" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                }
+                TouchArea { clicked => { root.active-tab = "history"; root.tab-changed("history"); } }
+            }
+        }
+
+        // Empty State (if active-tab == "saved" and saved-movies.length == 0)
+        if root.active-tab == "saved" && root.saved-movies.length == 0 : Rectangle {
+            height: 240px;
+            VerticalLayout {
+                alignment: center;
+                spacing: 12px;
+
+                Text { text: "📂"; font-size: 36px; horizontal-alignment: center; }
+                Text {
+                    text: "Your watchlist is empty.";
+                    color: Theme.text-primary;
+                    font-size: 16px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Click the heart button on any movie in Home or Discover to save it here.";
+                    color: Theme.text-muted;
+                    font-size: 12px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        // Saved Movies Grid
+        if root.active-tab == "saved" && root.saved-movies.length > 0 : HorizontalLayout {
+            spacing: 16px;
+            alignment: start;
+
+            for item in root.saved-movies : MovieCard {
+                item: item;
+                clicked => { root.movie-selected(item.slug); }
+                play-clicked => { root.play-movie(item.slug); }
+                save-clicked => { root.toggle-save(item.slug); }
+            }
+        }
+
+        // History Movies Grid
+        if root.active-tab == "history" && root.history-movies.length > 0 : HorizontalLayout {
+            spacing: 16px;
+            alignment: start;
+
+            for item in root.history-movies : MovieCard {
+                item: item;
+                clicked => { root.movie-selected(item.slug); }
+                play-clicked => { root.play-movie(item.slug); }
+                save-clicked => { root.toggle-save(item.slug); }
+            }
+        }
+    }
+}

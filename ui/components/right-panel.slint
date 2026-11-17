@@ -1,0 +1,369 @@
+import { Theme } from "../themes/theme.slint";
+import { MovieItem } from "../models.slint";
+
+export component RightPanel inherits Rectangle {
+    in property <[MovieItem]> suggestions;
+    in property <MovieItem> current-playing;
+    in-out property <bool> is-playing: false;
+    in-out property <string> selected-genre: "All";
+
+    callback movie-selected(string);
+    callback genre-selected(string);
+    callback toggle-play();
+
+    width: 290px;
+    background: #090a0d88;
+
+    // Left border line
+    Rectangle {
+        x: 0;
+        width: 1px;
+        height: 100%;
+        background: Theme.border;
+    }
+
+    VerticalLayout {
+        padding: 18px;
+        spacing: 16px;
+
+        // Panel 1: Picked for you
+        Rectangle {
+            border-radius: Theme.radius-lg;
+            background: Theme.panel;
+            border-width: 1px;
+            border-color: Theme.border;
+
+            VerticalLayout {
+                padding: 14px;
+                spacing: 12px;
+
+                // Title
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+
+                    Text { text: "✨"; font-size: 14px; vertical-alignment: center; }
+
+                    VerticalLayout {
+                        spacing: 2px;
+                        Text {
+                            text: "Picked for you";
+                            color: Theme.text-primary;
+                            font-size: 13px;
+                            font-weight: 700;
+                        }
+                        Text {
+                            text: "Based on your movie taste";
+                            color: Theme.text-muted;
+                            font-size: 10px;
+                        }
+                    }
+                }
+
+                // Suggestions List
+                for item in root.suggestions : Rectangle {
+                    height: 52px;
+                    border-radius: 8px;
+                    background: sug-touch.has-hover ? #ffffff0d : #00000000;
+
+                    HorizontalLayout {
+                        padding: 4px;
+                        spacing: 10px;
+                        alignment: center;
+
+                        // Mini Thumb
+                        Rectangle {
+                            width: 38px;
+                            height: 48px;
+                            border-radius: 6px;
+                            background: Theme.card-bg;
+                            clip: true;
+
+                            Image {
+                                width: 100%;
+                                height: 100%;
+                                source: @image-url("../../assets/images/poster_placeholder.png");
+                                image-fit: cover;
+                            }
+                        }
+
+                        // Info
+                        VerticalLayout {
+                            horizontal-stretch: 1;
+                            spacing: 3px;
+                            alignment: center;
+
+                            Text {
+                                text: item.title;
+                                color: Theme.text-primary;
+                                font-size: 11px;
+                                font-weight: 700;
+                                overflow: elide;
+                            }
+
+                            Text {
+                                text: item.genre + " · " + item.year;
+                                color: Theme.text-muted;
+                                font-size: 9px;
+                                overflow: elide;
+                            }
+                        }
+
+                        // Select / Play button
+                        Rectangle {
+                            width: 26px;
+                            height: 26px;
+                            border-radius: 13px;
+                            background: #ffffff14;
+
+                            Text {
+                                text: "▶";
+                                color: Theme.text-primary;
+                                font-size: 9px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    sug-touch := TouchArea {
+                        clicked => { root.movie-selected(item.slug); }
+                    }
+                }
+            }
+        }
+
+        // Panel 2: Your top genres
+        Rectangle {
+            border-radius: Theme.radius-lg;
+            background: Theme.panel;
+            border-width: 1px;
+            border-color: Theme.border;
+
+            VerticalLayout {
+                padding: 14px;
+                spacing: 10px;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text { text: "📊"; font-size: 13px; vertical-alignment: center; }
+                    Text {
+                        text: "Your top genres";
+                        color: Theme.text-primary;
+                        font-size: 13px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Cloud of genres
+                HorizontalLayout {
+                    spacing: 6px;
+
+                    Rectangle {
+                        height: 26px;
+                        border-radius: 13px;
+                        background: root.selected-genre == "Action" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
+                        border-width: 1px;
+                        border-color: root.selected-genre == "Action" ? Theme.primary : #ffffff12;
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            Text { text: "Action"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
+                        }
+                        TouchArea { clicked => { root.genre-selected("Action"); } }
+                    }
+
+                    Rectangle {
+                        height: 26px;
+                        border-radius: 13px;
+                        background: root.selected-genre == "Sci-Fi" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
+                        border-width: 1px;
+                        border-color: root.selected-genre == "Sci-Fi" ? Theme.primary : #ffffff12;
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            Text { text: "Sci-Fi"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
+                        }
+                        TouchArea { clicked => { root.genre-selected("Sci-Fi"); } }
+                    }
+
+                    Rectangle {
+                        height: 26px;
+                        border-radius: 13px;
+                        background: root.selected-genre == "Drama" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
+                        border-width: 1px;
+                        border-color: root.selected-genre == "Drama" ? Theme.primary : #ffffff12;
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            Text { text: "Drama"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
+                        }
+                        TouchArea { clicked => { root.genre-selected("Drama"); } }
+                    }
+                }
+
+                HorizontalLayout {
+                    spacing: 6px;
+
+                    Rectangle {
+                        height: 26px;
+                        border-radius: 13px;
+                        background: root.selected-genre == "Thriller" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
+                        border-width: 1px;
+                        border-color: root.selected-genre == "Thriller" ? Theme.primary : #ffffff12;
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            Text { text: "Thriller"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
+                        }
+                        TouchArea { clicked => { root.genre-selected("Thriller"); } }
+                    }
+
+                    Rectangle {
+                        height: 26px;
+                        border-radius: 13px;
+                        background: root.selected-genre == "Anime" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
+                        border-width: 1px;
+                        border-color: root.selected-genre == "Anime" ? Theme.primary : #ffffff12;
+
+                        HorizontalLayout {
+                            padding-left: 10px;
+                            padding-right: 10px;
+                            Text { text: "Anime"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
+                        }
+                        TouchArea { clicked => { root.genre-selected("Anime"); } }
+                    }
+                }
+            }
+        }
+
+        // Spacer pushing mini-player to bottom
+        Rectangle {
+            vertical-stretch: 1;
+        }
+
+        // Panel 3: Now Playing Mini Player
+        Rectangle {
+            border-radius: Theme.radius-lg;
+            background: @linear-gradient(120deg, Theme.primary.with-alpha(0.18) 0%, #ffffff09 100%);
+            border-width: 1px;
+            border-color: Theme.primary.with-alpha(0.28);
+
+            VerticalLayout {
+                padding: 14px;
+                spacing: 12px;
+
+                // Movie Info Row
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: center;
+
+                    // Poster
+                    Rectangle {
+                        width: 44px;
+                        height: 54px;
+                        border-radius: 6px;
+                        background: Theme.card-bg;
+                        clip: true;
+
+                        Image {
+                            width: 100%;
+                            height: 100%;
+                            source: @image-url("../../assets/images/poster_placeholder.png");
+                            image-fit: cover;
+                        }
+                    }
+
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        spacing: 3px;
+                        alignment: center;
+
+                        Text {
+                            text: root.current-playing.title != "" ? root.current-playing.title : "Dune: Part Two";
+                            color: Theme.text-primary;
+                            font-size: 12px;
+                            font-weight: 700;
+                            overflow: elide;
+                        }
+
+                        Text {
+                            text: "Selected for your next watch";
+                            color: Theme.text-muted;
+                            font-size: 9px;
+                        }
+                    }
+
+                    Text {
+                        text: "♥";
+                        color: Theme.primary;
+                        font-size: 16px;
+                        vertical-alignment: center;
+                    }
+                }
+
+                // Progress Track
+                Rectangle {
+                    height: 3px;
+                    background: #ffffff24;
+                    border-radius: 2px;
+
+                    Rectangle {
+                        x: 0;
+                        width: parent.width * 0.42;
+                        height: 100%;
+                        background: Theme.primary;
+                        border-radius: 2px;
+                    }
+                }
+
+                // Controls Row
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    Text { text: "01:24"; font-size: 10px; color: Theme.text-muted; vertical-alignment: center; }
+
+                    HorizontalLayout {
+                        spacing: 14px;
+                        alignment: center;
+
+                        Text { text: "⏮"; font-size: 13px; color: Theme.text-secondary; vertical-alignment: center; }
+
+                        // Play/Pause Circle
+                        Rectangle {
+                            width: 32px;
+                            height: 32px;
+                            border-radius: 16px;
+                            background: Theme.primary;
+
+                            Text {
+                                text: root.is-playing ? "⏸" : "▶";
+                                color: Theme.text-dark;
+                                font-size: 12px;
+                                font-weight: 800;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            TouchArea {
+                                clicked => {
+                                    root.is-playing = !root.is-playing;
+                                    root.toggle-play();
+                                }
+                            }
+                        }
+
+                        Text { text: "⏭"; font-size: 13px; color: Theme.text-secondary; vertical-alignment: center; }
+                    }
+
+                    Text { text: "02:18"; font-size: 10px; color: Theme.text-muted; vertical-alignment: center; }
+                }
+            }
+        }
+    }
+}

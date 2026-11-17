@@ -1,0 +1,35 @@
+export struct MovieItem {
+    id: string,
+    slug: string,
+    title: string,
+    origin_title: string,
+    poster_url: string,
+    backdrop_url: string,
+    genre: string,
+    year: string,
+    rating: string,
+    rank: int,
+    quality: string,
+    progress: int,
+    is_saved: bool,
+}
+
+export struct PersonItem {
+    name: string,
+    role: string,
+    avatar_url: string,
+}
+
+export struct EpisodeItem {
+    server_name: string,
+    name: string,
+    slug: string,
+    link_embed: string,
+    link_m3u8: string,
+}
+
+export struct GenreFilterItem {
+    name: string,
+    slug: string,
+    active: bool,
+}

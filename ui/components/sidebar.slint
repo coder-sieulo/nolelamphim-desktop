@@ -1,0 +1,366 @@
+import { Theme } from "../themes/theme.slint";
+
+export component Sidebar inherits Rectangle {
+    in-out property <string> active-page: "Home";
+    in-out property <string> current-provider: "PhimAPI";
+
+    callback navigate(string);
+    callback change-provider(string);
+
+    width: 224px;
+    background: #0a0b0e9e;
+
+    // Right border line
+    Rectangle {
+        x: parent.width - 1px;
+        width: 1px;
+        height: 100%;
+        background: Theme.border;
+    }
+
+    VerticalLayout {
+        padding-top: 24px;
+        padding-bottom: 20px;
+        padding-left: 16px;
+        padding-right: 16px;
+        spacing: 16px;
+
+        // Brand Header
+        HorizontalLayout {
+            spacing: 10px;
+            alignment: start;
+
+            // Brand Mark
+            Rectangle {
+                width: 34px;
+                height: 34px;
+                border-radius: 10px;
+                background: @linear-gradient(145deg, Theme.primary-light 0%, Theme.primary 100%);
+
+                Text {
+                    text: "▶";
+                    color: Theme.text-dark;
+                    font-size: 14px;
+                    font-weight: 800;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+            }
+
+            // Brand Name
+            Text {
+                text: "Nolelamphim";
+                color: Theme.text-primary;
+                font-size: 19px;
+                font-weight: 800;
+                vertical-alignment: center;
+            }
+        }
+
+        // Active API Provider Selector Pill
+        Rectangle {
+            height: 34px;
+            border-radius: 17px;
+            background: #ffffff0a;
+            border-width: 1px;
+            border-color: Theme.border;
+
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                alignment: space-between;
+
+                Text {
+                    text: "API: " + root.current-provider;
+                    color: Theme.primary-light;
+                    font-size: 11px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
+
+                Text {
+                    text: "⇄";
+                    color: Theme.text-muted;
+                    font-size: 13px;
+                    vertical-alignment: center;
+                }
+            }
+
+            TouchArea {
+                clicked => {
+                    if (root.current-provider == "PhimAPI") {
+                        root.change-provider("NguonC");
+                    } else if (root.current-provider == "NguonC") {
+                        root.change-provider("Vsmov");
+                    } else {
+                        root.change-provider("PhimAPI");
+                    }
+                }
+            }
+        }
+
+        // Navigation Header
+        Text {
+            text: "MENU";
+            color: Theme.text-muted;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            padding-left: 6px;
+        }
+
+        // Navigation Items
+        VerticalLayout {
+            spacing: 6px;
+
+            // Home Nav Item
+            nav-home := Rectangle {
+                height: 42px;
+                border-radius: Theme.radius-md;
+                background: root.active-page == "Home" ? 
+                    @linear-gradient(100deg, Theme.primary.with-alpha(0.28) 0%, Theme.primary.with-alpha(0.08) 100%) : 
+                    home-touch.has-hover ? #ffffff0f : #00000000;
+                border-width: root.active-page == "Home" ? 1px : 0;
+                border-color: Theme.primary.with-alpha(0.35);
+
+                HorizontalLayout {
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    spacing: 12px;
+                    alignment: start;
+
+                    Text {
+                        text: "🏠";
+                        font-size: 14px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "Home";
+                        color: root.active-page == "Home" ? Theme.text-primary : Theme.text-secondary;
+                        font-size: 13px;
+                        font-weight: root.active-page == "Home" ? 700 : 500;
+                        vertical-alignment: center;
+                    }
+                }
+
+                home-touch := TouchArea {
+                    clicked => { root.navigate("Home"); }
+                }
+            }
+
+            // Discover Nav Item
+            nav-discover := Rectangle {
+                height: 42px;
+                border-radius: Theme.radius-md;
+                background: root.active-page == "Discover" ? 
+                    @linear-gradient(100deg, Theme.primary.with-alpha(0.28) 0%, Theme.primary.with-alpha(0.08) 100%) : 
+                    discover-touch.has-hover ? #ffffff0f : #00000000;
+                border-width: root.active-page == "Discover" ? 1px : 0;
+                border-color: Theme.primary.with-alpha(0.35);
+
+                HorizontalLayout {
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    spacing: 12px;
+                    alignment: start;
+
+                    Text {
+                        text: "🧭";
+                        font-size: 14px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "Discover";
+                        color: root.active-page == "Discover" ? Theme.text-primary : Theme.text-secondary;
+                        font-size: 13px;
+                        font-weight: root.active-page == "Discover" ? 700 : 500;
+                        vertical-alignment: center;
+                    }
+                }
+
+                discover-touch := TouchArea {
+                    clicked => { root.navigate("Discover"); }
+                }
+            }
+
+            // Your Library Nav Item
+            nav-library := Rectangle {
+                height: 42px;
+                border-radius: Theme.radius-md;
+                background: root.active-page == "Library" ? 
+                    @linear-gradient(100deg, Theme.primary.with-alpha(0.28) 0%, Theme.primary.with-alpha(0.08) 100%) : 
+                    library-touch.has-hover ? #ffffff0f : #00000000;
+                border-width: root.active-page == "Library" ? 1px : 0;
+                border-color: Theme.primary.with-alpha(0.35);
+
+                HorizontalLayout {
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    spacing: 12px;
+                    alignment: start;
+
+                    Text {
+                        text: "📑";
+                        font-size: 14px;
+                        vertical-alignment: center;
+                    }
+
+                    Text {
+                        text: "Your Library";
+                        color: root.active-page == "Library" ? Theme.text-primary : Theme.text-secondary;
+                        font-size: 13px;
+                        font-weight: root.active-page == "Library" ? 700 : 500;
+                        vertical-alignment: center;
+                    }
+                }
+
+                library-touch := TouchArea {
+                    clicked => { root.navigate("Library"); }
+                }
+            }
+        }
+
+        // Divider
+        Rectangle {
+            height: 1px;
+            background: Theme.border;
+        }
+
+        // Playlists Section
+        HorizontalLayout {
+            alignment: space-between;
+            padding-left: 6px;
+            padding-right: 6px;
+
+            Text {
+                text: "YOUR PLAYLISTS";
+                color: Theme.text-muted;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 1.5px;
+            }
+
+            Text {
+                text: "+";
+                color: Theme.text-muted;
+                font-size: 14px;
+            }
+        }
+
+        // Playlist items
+        VerticalLayout {
+            spacing: 4px;
+
+            Rectangle {
+                height: 32px;
+                border-radius: 8px;
+                background: p1-touch.has-hover ? #ffffff0d : #00000000;
+                HorizontalLayout {
+                    padding-left: 8px;
+                    spacing: 8px;
+                    Text { text: "☕"; font-size: 12px; vertical-alignment: center; }
+                    Text { text: "Chill Movies"; color: Theme.text-secondary; font-size: 12px; vertical-alignment: center; }
+                }
+                p1-touch := TouchArea {}
+            }
+
+            Rectangle {
+                height: 32px;
+                border-radius: 8px;
+                background: p2-touch.has-hover ? #ffffff0d : #00000000;
+                HorizontalLayout {
+                    padding-left: 8px;
+                    spacing: 8px;
+                    Text { text: "⚡"; font-size: 12px; vertical-alignment: center; }
+                    Text { text: "Action Bangers"; color: Theme.text-secondary; font-size: 12px; vertical-alignment: center; }
+                }
+                p2-touch := TouchArea {}
+            }
+
+            Rectangle {
+                height: 32px;
+                border-radius: 8px;
+                background: p3-touch.has-hover ? #ffffff0d : #00000000;
+                HorizontalLayout {
+                    padding-left: 8px;
+                    spacing: 8px;
+                    Text { text: "💖"; font-size: 12px; vertical-alignment: center; }
+                    Text { text: "Feel Good Vibes"; color: Theme.text-secondary; font-size: 12px; vertical-alignment: center; }
+                }
+                p3-touch := TouchArea {}
+            }
+
+            Rectangle {
+                height: 32px;
+                border-radius: 8px;
+                background: p4-touch.has-hover ? #ffffff0d : #00000000;
+                HorizontalLayout {
+                    padding-left: 8px;
+                    spacing: 8px;
+                    Text { text: "🐉"; font-size: 12px; vertical-alignment: center; }
+                    Text { text: "Anime Corner"; color: Theme.text-secondary; font-size: 12px; vertical-alignment: center; }
+                }
+                p4-touch := TouchArea {}
+            }
+        }
+
+        // Spacer pushing upgrade & footer to bottom
+        Rectangle {
+            vertical-stretch: 1;
+        }
+
+        // Upgrade Card
+        Rectangle {
+            border-radius: Theme.radius-lg;
+            background: @linear-gradient(145deg, Theme.primary.with-alpha(0.16) 0%, #ffffff09 100%);
+            border-width: 1px;
+            border-color: Theme.primary.with-alpha(0.24);
+
+            VerticalLayout {
+                padding: 14px;
+                spacing: 8px;
+
+                Text {
+                    text: "🎬  Upgrade to Plus";
+                    color: Theme.primary-light;
+                    font-size: 12px;
+                    font-weight: 700;
+                }
+
+                Text {
+                    text: "More stories. No distractions. Your cinema, your rules.";
+                    color: Theme.text-secondary;
+                    font-size: 10px;
+                    wrap: word-wrap;
+                }
+
+                Rectangle {
+                    height: 30px;
+                    border-radius: 15px;
+                    background: @linear-gradient(100deg, Theme.primary-light 0%, Theme.primary 100%);
+
+                    Text {
+                        text: "Explore Premium →";
+                        color: Theme.text-dark;
+                        font-size: 11px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+
+        // Bottom Utilities
+        HorizontalLayout {
+            alignment: space-around;
+            padding-top: 6px;
+
+            Text { text: "⚙"; font-size: 15px; color: Theme.text-muted; }
+            Text { text: "🔔"; font-size: 15px; color: Theme.text-muted; }
+            Text { text: "🌙"; font-size: 15px; color: Theme.text-muted; }
+        }
+    }
+}

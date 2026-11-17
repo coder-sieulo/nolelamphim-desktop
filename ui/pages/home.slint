@@ -1,0 +1,203 @@
+import { Theme } from "../themes/theme.slint";
+import { MovieItem } from "../models.slint";
+import { HeroBanner } from "../components/hero-banner.slint";
+import { MovieCard } from "../components/movie-card.slint";
+import { ContinueCard } from "../components/continue-card.slint";
+
+export component HomePage inherits Flickable {
+    in property <MovieItem> featured-movie;
+    in property <[MovieItem]> trending-movies;
+    in property <[MovieItem]> continue-movies;
+    in property <[MovieItem]> mood-movies;
+
+    callback movie-selected(string);
+    callback play-movie(string);
+    callback toggle-save(string);
+    callback see-all(string);
+
+    viewport-width: self.width;
+
+    VerticalLayout {
+        padding-top: 10px;
+        padding-bottom: 40px;
+        spacing: 28px;
+
+        // Hero Banner
+        HeroBanner {
+            featured: root.featured-movie;
+            play-clicked => { root.play-movie(root.featured-movie.slug); }
+            save-clicked => { root.toggle-save(root.featured-movie.slug); }
+        }
+
+        // Section 1: Trending Now
+        VerticalLayout {
+            spacing: 14px;
+
+            // Section Header
+            HorizontalLayout {
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 4px;
+                            height: 20px;
+                            border-radius: 2px;
+                            background: Theme.primary;
+                        }
+                    }
+
+                    Text {
+                        text: "Trending Now";
+                        color: Theme.text-primary;
+                        font-size: 18px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Text {
+                    text: "See all →";
+                    color: Theme.text-muted;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                    
+                    TouchArea {
+                        clicked => { root.see-all("trending"); }
+                    }
+                }
+            }
+
+            // 6-Column Grid / Row of Movies
+            HorizontalLayout {
+                spacing: 14px;
+                alignment: start;
+
+                for item in root.trending-movies : MovieCard {
+                    item: item;
+                    clicked => { root.movie-selected(item.slug); }
+                    play-clicked => { root.play-movie(item.slug); }
+                    save-clicked => { root.toggle-save(item.slug); }
+                }
+            }
+        }
+
+        // Section 2: Continue Watching
+        VerticalLayout {
+            spacing: 14px;
+
+            HorizontalLayout {
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 4px;
+                            height: 20px;
+                            border-radius: 2px;
+                            background: Theme.primary;
+                        }
+                    }
+
+                    Text {
+                        text: "Continue Watching";
+                        color: Theme.text-primary;
+                        font-size: 18px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Text {
+                    text: "See all →";
+                    color: Theme.text-muted;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+            }
+
+            // 3-Column Continue Watching Row
+            HorizontalLayout {
+                spacing: 16px;
+
+                for item in root.continue-movies : ContinueCard {
+                    horizontal-stretch: 1;
+                    item: item;
+                    clicked => { root.movie-selected(item.slug); }
+                    play-clicked => { root.play-movie(item.slug); }
+                }
+            }
+        }
+
+        // Section 3: Made for your mood
+        VerticalLayout {
+            spacing: 14px;
+
+            HorizontalLayout {
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: start;
+
+                    VerticalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: 4px;
+                            height: 20px;
+                            border-radius: 2px;
+                            background: Theme.primary;
+                        }
+                    }
+
+                    Text {
+                        text: "Made for your mood";
+                        color: Theme.text-primary;
+                        font-size: 18px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Text {
+                    text: "Explore →";
+                    color: Theme.text-muted;
+                    font-size: 12px;
+                    vertical-alignment: center;
+                }
+            }
+
+            // 6-Column Grid / Row of Movies
+            HorizontalLayout {
+                spacing: 14px;
+                alignment: start;
+
+                for item in root.mood-movies : MovieCard {
+                    item: item;
+                    clicked => { root.movie-selected(item.slug); }
+                    play-clicked => { root.play-movie(item.slug); }
+                    save-clicked => { root.toggle-save(item.slug); }
+                }
+            }
+        }
+
+        // Footer
+        Text {
+            text: "© 2026 NOLELAMPHIM · YOUR NEXT STORY STARTS HERE";
+            color: #555760;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            horizontal-alignment: center;
+            padding-top: 24px;
+        }
+    }
+}

@@ -1,0 +1,259 @@
+import { Theme } from "../themes/theme.slint";
+import { MovieItem, GenreFilterItem } from "../models.slint";
+import { MovieCard } from "../components/movie-card.slint";
+
+export component DiscoverPage inherits Flickable {
+    in property <[MovieItem]> movies;
+    in property <[GenreFilterItem]> genres;
+    in-out property <string> selected-genre: "All";
+    in-out property <string> selected-type: "all";
+    in property <int> current-page: 1;
+    in property <int> total-pages: 10;
+
+    callback genre-selected(string);
+    callback type-selected(string);
+    callback movie-selected(string);
+    callback play-movie(string);
+    callback toggle-save(string);
+    callback page-changed(int);
+
+    viewport-width: self.width;
+
+    VerticalLayout {
+        padding-top: 10px;
+        padding-bottom: 40px;
+        spacing: 22px;
+
+        // Title Header
+        VerticalLayout {
+            spacing: 6px;
+
+            Text {
+                text: "YOUR NEXT FAVORITE STORY";
+                color: Theme.primary-light;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 2.5px;
+            }
+
+            Text {
+                text: "Discover Movies & Series";
+                color: Theme.text-primary;
+                font-size: 32px;
+                font-weight: 800;
+            }
+
+            Text {
+                text: "Filter through thousands of titles across multiple sources with high fidelity.";
+                color: Theme.text-muted;
+                font-size: 13px;
+            }
+        }
+
+        // Category Type Bar (Phim Lẻ, Phim Bộ, Hoạt Hình, Chiếu Rạp)
+        HorizontalLayout {
+            spacing: 10px;
+
+            Rectangle {
+                height: 36px;
+                border-radius: 18px;
+                background: root.selected-type == "all" ? Theme.primary.with-alpha(0.25) : #ffffff0c;
+                border-width: 1px;
+                border-color: root.selected-type == "all" ? Theme.primary : Theme.border;
+
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    Text { text: "Tất cả"; font-size: 12px; font-weight: 600; color: root.selected-type == "all" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                }
+                TouchArea { clicked => { root.type-selected("all"); } }
+            }
+
+            Rectangle {
+                height: 36px;
+                border-radius: 18px;
+                background: root.selected-type == "phim-le" ? Theme.primary.with-alpha(0.25) : #ffffff0c;
+                border-width: 1px;
+                border-color: root.selected-type == "phim-le" ? Theme.primary : Theme.border;
+
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    Text { text: "Phim Lẻ"; font-size: 12px; font-weight: 600; color: root.selected-type == "phim-le" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                }
+                TouchArea { clicked => { root.type-selected("phim-le"); } }
+            }
+
+            Rectangle {
+                height: 36px;
+                border-radius: 18px;
+                background: root.selected-type == "phim-bo" ? Theme.primary.with-alpha(0.25) : #ffffff0c;
+                border-width: 1px;
+                border-color: root.selected-type == "phim-bo" ? Theme.primary : Theme.border;
+
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    Text { text: "Phim Bộ"; font-size: 12px; font-weight: 600; color: root.selected-type == "phim-bo" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                }
+                TouchArea { clicked => { root.type-selected("phim-bo"); } }
+            }
+
+            Rectangle {
+                height: 36px;
+                border-radius: 18px;
+                background: root.selected-type == "hoat-hinh" ? Theme.primary.with-alpha(0.25) : #ffffff0c;
+                border-width: 1px;
+                border-color: root.selected-type == "hoat-hinh" ? Theme.primary : Theme.border;
+
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    Text { text: "Hoạt Hình"; font-size: 12px; font-weight: 600; color: root.selected-type == "hoat-hinh" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                }
+                TouchArea { clicked => { root.type-selected("hoat-hinh"); } }
+            }
+
+            Rectangle {
+                height: 36px;
+                border-radius: 18px;
+                background: root.selected-type == "phim-chieu-rap" ? Theme.primary.with-alpha(0.25) : #ffffff0c;
+                border-width: 1px;
+                border-color: root.selected-type == "phim-chieu-rap" ? Theme.primary : Theme.border;
+
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    Text { text: "Chiếu Rạp"; font-size: 12px; font-weight: 600; color: root.selected-type == "phim-chieu-rap" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                }
+                TouchArea { clicked => { root.type-selected("phim-chieu-rap"); } }
+            }
+        }
+
+        // Genre Tabs Row
+        HorizontalLayout {
+            spacing: 8px;
+
+            for g in root.genres : Rectangle {
+                height: 32px;
+                border-radius: 16px;
+                background: g.active ? Theme.primary.with-alpha(0.25) : #ffffff0a;
+                border-width: 1px;
+                border-color: g.active ? Theme.primary : #ffffff14;
+
+                HorizontalLayout {
+                    padding-left: 14px;
+                    padding-right: 14px;
+                    Text {
+                        text: g.name;
+                        color: g.active ? Theme.primary-light : Theme.text-secondary;
+                        font-size: 11px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                }
+
+                TouchArea {
+                    clicked => { root.genre-selected(g.slug); }
+                }
+            }
+        }
+
+        // Movies Grid
+        if root.movies.length == 0 : Rectangle {
+            height: 220px;
+            VerticalLayout {
+                alignment: center;
+                spacing: 12px;
+                Text { text: "🔍"; font-size: 32px; horizontal-alignment: center; }
+                Text {
+                    text: "No movies found. Try selecting another genre or keyword.";
+                    color: Theme.text-muted;
+                    font-size: 13px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        if root.movies.length > 0 : HorizontalLayout {
+            spacing: 16px;
+            alignment: start;
+
+            for item in root.movies : MovieCard {
+                item: item;
+                clicked => { root.movie-selected(item.slug); }
+                play-clicked => { root.play-movie(item.slug); }
+                save-clicked => { root.toggle-save(item.slug); }
+            }
+        }
+
+        // Pagination Bar
+        HorizontalLayout {
+            alignment: center;
+            spacing: 16px;
+            padding-top: 20px;
+
+            // Prev Button
+            Rectangle {
+                width: 80px;
+                height: 34px;
+                border-radius: 17px;
+                background: #ffffff0e;
+                border-width: 1px;
+                border-color: Theme.border;
+
+                Text {
+                    text: "← Prev";
+                    color: Theme.text-secondary;
+                    font-size: 11px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                TouchArea {
+                    clicked => {
+                        if (root.current-page > 1) {
+                            root.page-changed(root.current-page - 1);
+                        }
+                    }
+                }
+            }
+
+            Text {
+                text: "Page " + root.current-page + " of " + root.total-pages;
+                color: Theme.text-muted;
+                font-size: 12px;
+                font-weight: 600;
+                vertical-alignment: center;
+            }
+
+            // Next Button
+            Rectangle {
+                width: 80px;
+                height: 34px;
+                border-radius: 17px;
+                background: #ffffff0e;
+                border-width: 1px;
+                border-color: Theme.border;
+
+                Text {
+                    text: "Next →";
+                    color: Theme.text-secondary;
+                    font-size: 11px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                TouchArea {
+                    clicked => {
+                        if (root.current-page < root.total-pages) {
+                            root.page-changed(root.current-page + 1);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
