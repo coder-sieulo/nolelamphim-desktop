@@ -36,6 +36,11 @@ export component ContinueCard inherits Rectangle {
         background: @linear-gradient(90deg, #090a0ddd 0%, #090a0d66 60%, #00000022 100%);
     }
 
+    // Card touch area
+    touch := TouchArea {
+        clicked => { root.clicked(); }
+    }
+
     // Title and Info
     VerticalLayout {
         x: 14px;
@@ -94,9 +99,5 @@ export component ContinueCard inherits Rectangle {
             height: 100%;
             background: Theme.primary;
         }
-    }
-
-    touch := TouchArea {
-        clicked => { root.clicked(); }
     }
 }

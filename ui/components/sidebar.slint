@@ -6,6 +6,9 @@ export component Sidebar inherits Rectangle {
 
     callback navigate(string);
     callback change-provider(string);
+    callback playlist-selected(string);
+    callback upgrade-clicked();
+    callback quick-action(string);
 
     width: 224px;
     background: #0a0b0e9e;
@@ -248,6 +251,10 @@ export component Sidebar inherits Rectangle {
                 text: "+";
                 color: Theme.text-muted;
                 font-size: 14px;
+                vertical-alignment: center;
+                TouchArea {
+                    clicked => { root.quick-action("create-playlist"); }
+                }
             }
         }
 
@@ -265,7 +272,9 @@ export component Sidebar inherits Rectangle {
                     Text { text: "☕"; font-size: 12px; vertical-alignment: center; }
                     Text { text: "Chill Movies"; color: Theme.text-secondary; font-size: 12px; vertical-alignment: center; }
                 }
-                p1-touch := TouchArea {}
+                p1-touch := TouchArea {
+                    clicked => { root.playlist-selected("tinh-cam"); }
+                }
             }
 
             Rectangle {
@@ -278,7 +287,9 @@ export component Sidebar inherits Rectangle {
                     Text { text: "⚡"; font-size: 12px; vertical-alignment: center; }
                     Text { text: "Action Bangers"; color: Theme.text-secondary; font-size: 12px; vertical-alignment: center; }
                 }
-                p2-touch := TouchArea {}
+                p2-touch := TouchArea {
+                    clicked => { root.playlist-selected("hanh-dong"); }
+                }
             }
 
             Rectangle {
@@ -291,7 +302,9 @@ export component Sidebar inherits Rectangle {
                     Text { text: "💖"; font-size: 12px; vertical-alignment: center; }
                     Text { text: "Feel Good Vibes"; color: Theme.text-secondary; font-size: 12px; vertical-alignment: center; }
                 }
-                p3-touch := TouchArea {}
+                p3-touch := TouchArea {
+                    clicked => { root.playlist-selected("hai-huoc"); }
+                }
             }
 
             Rectangle {
@@ -304,7 +317,9 @@ export component Sidebar inherits Rectangle {
                     Text { text: "🐉"; font-size: 12px; vertical-alignment: center; }
                     Text { text: "Anime Corner"; color: Theme.text-secondary; font-size: 12px; vertical-alignment: center; }
                 }
-                p4-touch := TouchArea {}
+                p4-touch := TouchArea {
+                    clicked => { root.playlist-selected("hoat-hinh"); }
+                }
             }
         }
 
@@ -351,6 +366,10 @@ export component Sidebar inherits Rectangle {
                         horizontal-alignment: center;
                         vertical-alignment: center;
                     }
+
+                    TouchArea {
+                        clicked => { root.upgrade-clicked(); }
+                    }
                 }
             }
         }
@@ -360,9 +379,32 @@ export component Sidebar inherits Rectangle {
             alignment: space-around;
             padding-top: 6px;
 
-            Text { text: "⚙"; font-size: 15px; color: Theme.text-muted; }
-            Text { text: "🔔"; font-size: 15px; color: Theme.text-muted; }
-            Text { text: "🌙"; font-size: 15px; color: Theme.text-muted; }
+            Rectangle {
+                width: 28px;
+                height: 28px;
+                border-radius: 14px;
+                background: gear-touch.has-hover ? #ffffff14 : #00000000;
+                Text { text: "⚙"; font-size: 15px; color: gear-touch.has-hover ? Theme.text-primary : Theme.text-muted; horizontal-alignment: center; vertical-alignment: center; }
+                gear-touch := TouchArea { clicked => { root.quick-action("settings"); } }
+            }
+
+            Rectangle {
+                width: 28px;
+                height: 28px;
+                border-radius: 14px;
+                background: bell-touch.has-hover ? #ffffff14 : #00000000;
+                Text { text: "🔔"; font-size: 15px; color: bell-touch.has-hover ? Theme.text-primary : Theme.text-muted; horizontal-alignment: center; vertical-alignment: center; }
+                bell-touch := TouchArea { clicked => { root.quick-action("notifications"); } }
+            }
+
+            Rectangle {
+                width: 28px;
+                height: 28px;
+                border-radius: 14px;
+                background: moon-touch.has-hover ? #ffffff14 : #00000000;
+                Text { text: "🌙"; font-size: 15px; color: moon-touch.has-hover ? Theme.text-primary : Theme.text-muted; horizontal-alignment: center; vertical-alignment: center; }
+                moon-touch := TouchArea { clicked => { root.quick-action("theme"); } }
+            }
         }
     }
 }

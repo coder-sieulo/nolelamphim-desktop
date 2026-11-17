@@ -63,6 +63,164 @@ pub fn open_target_url(url: &str) {
     }
 }
 
+fn find_movie_in_models(win: &AppWindow, slug: &str) -> Option<MovieItem> {
+    if win.get_hero_movie().slug == slug {
+        return Some(win.get_hero_movie());
+    }
+    if win.get_current_playing_movie().slug == slug {
+        return Some(win.get_current_playing_movie());
+    }
+    let trending = win.get_trending_movies();
+    for i in 0..trending.row_count() {
+        if let Some(m) = trending.row_data(i) {
+            if m.slug == slug {
+                return Some(m);
+            }
+        }
+    }
+    let discover = win.get_discover_movies();
+    for i in 0..discover.row_count() {
+        if let Some(m) = discover.row_data(i) {
+            if m.slug == slug {
+                return Some(m);
+            }
+        }
+    }
+    let mood = win.get_mood_movies();
+    for i in 0..mood.row_count() {
+        if let Some(m) = mood.row_data(i) {
+            if m.slug == slug {
+                return Some(m);
+            }
+        }
+    }
+    let cont = win.get_continue_movies();
+    for i in 0..cont.row_count() {
+        if let Some(m) = cont.row_data(i) {
+            if m.slug == slug {
+                return Some(m);
+            }
+        }
+    }
+    let saved = win.get_library_saved_movies();
+    for i in 0..saved.row_count() {
+        if let Some(m) = saved.row_data(i) {
+            if m.slug == slug {
+                return Some(m);
+            }
+        }
+    }
+    let sug = win.get_right_panel_suggestions();
+    for i in 0..sug.row_count() {
+        if let Some(m) = sug.row_data(i) {
+            if m.slug == slug {
+                return Some(m);
+            }
+        }
+    }
+    None
+}
+
+fn update_movie_saved_status(win: &AppWindow, slug: &str, is_saved: bool) {
+    if win.get_hero_movie().slug == slug {
+        let mut hero = win.get_hero_movie();
+        hero.is_saved = is_saved;
+        win.set_hero_movie(hero);
+    }
+    if win.get_current_playing_movie().slug == slug {
+        let mut cp = win.get_current_playing_movie();
+        cp.is_saved = is_saved;
+        win.set_current_playing_movie(cp);
+    }
+    let trending = win.get_trending_movies();
+    for i in 0..trending.row_count() {
+        if let Some(mut m) = trending.row_data(i) {
+            if m.slug == slug {
+                m.is_saved = is_saved;
+                trending.set_row_data(i, m);
+            }
+        }
+    }
+    let discover = win.get_discover_movies();
+    for i in 0..discover.row_count() {
+        if let Some(mut m) = discover.row_data(i) {
+            if m.slug == slug {
+                m.is_saved = is_saved;
+                discover.set_row_data(i, m);
+            }
+        }
+    }
+    let mood = win.get_mood_movies();
+    for i in 0..mood.row_count() {
+        if let Some(mut m) = mood.row_data(i) {
+            if m.slug == slug {
+                m.is_saved = is_saved;
+                mood.set_row_data(i, m);
+            }
+        }
+    }
+    let cont = win.get_continue_movies();
+    for i in 0..cont.row_count() {
+        if let Some(mut m) = cont.row_data(i) {
+            if m.slug == slug {
+                m.is_saved = is_saved;
+                cont.set_row_data(i, m);
+            }
+        }
+    }
+    let sug = win.get_right_panel_suggestions();
+    for i in 0..sug.row_count() {
+        if let Some(mut m) = sug.row_data(i) {
+            if m.slug == slug {
+                m.is_saved = is_saved;
+                sug.set_row_data(i, m);
+            }
+        }
+    }
+}
+
+fn trigger_play_movie(
+    slug_str: String,
+    window_weak: slint::Weak<AppWindow>,
+    agg: Arc<MovieAggregatorService>,
+    stor: Arc<StorageService>,
+) {
+    let win_weak_ui = window_weak.clone();
+    let slug_ui = slug_str.clone();
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(win) = win_weak_ui.upgrade() {
+            if let Some(movie) = find_movie_in_models(&win, &slug_ui) {
+                win.set_current_playing_movie(movie);
+            }
+            win.set_is_playing(true);
+        }
+    });
+
+    tokio::spawn(async move {
+        if let Ok(detail) = agg.get_movie_detail(&slug_str).await {
+            if let Some(ep) = detail.episodes.first() {
+                let stream_url = if !ep.link_embed.is_empty() {
+                    &ep.link_embed
+                } else {
+                    &ep.link_m3u8
+                };
+                if !stream_url.is_empty() {
+                    open_target_url(stream_url);
+                }
+            }
+            let updated_hist = stor.add_to_history(detail.summary, 25).await;
+            let win_weak_hist = window_weak.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(win) = win_weak_hist.upgrade() {
+                    let slint_hist: Vec<MovieItem> = updated_hist.iter().map(to_slint_movie_item).collect();
+                    win.set_continue_movies(ModelRc::new(VecModel::from(slint_hist.clone())));
+                    win.set_library_history_movies(ModelRc::new(VecModel::from(slint_hist)));
+                }
+            });
+        }
+    });
+}
+
 fn load_trending_images_concurrent(
     live_movies: Vec<models::UnifiedMovieSummary>,
     cache: Arc<ImageCacheService>,
@@ -557,8 +715,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let win_weak = window_weak.clone();
             let agg_clone = agg.clone();
             let c_fetch = cache.clone();
+            let slug_for_active = slug.clone();
+
+            if let Some(win) = window_weak.upgrade() {
+                let genres_model = win.get_discover_genres();
+                for i in 0..genres_model.row_count() {
+                    if let Some(mut g) = genres_model.row_data(i) {
+                        g.active = g.slug == slug_for_active;
+                        genres_model.set_row_data(i, g);
+                    }
+                }
+            }
+
             tokio::spawn(async move {
-                if let Ok(results) = agg_clone.get_movies_by_genre(&slug, 1).await {
+                let fetch_res = if slug == "All" || slug.is_empty() {
+                    agg_clone.get_home_trending().await.map(|items| models::UnifiedMovieListResponse {
+                        items,
+                        pagination: models::UnifiedPagination {
+                            current_page: 1,
+                            total_items: 20,
+                            total_pages: 1,
+                            items_per_page: 20,
+                        }
+                    })
+                } else {
+                    agg_clone.get_movies_by_genre(&slug, 1).await
+                };
+
+                if let Ok(results) = fetch_res {
                     let win_weak_ui = win_weak.clone();
                     let items_clone = results.items.clone();
                     let _ = slint::invoke_from_event_loop(move || {
@@ -585,7 +769,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let agg_clone = agg.clone();
             let c_fetch = cache.clone();
             tokio::spawn(async move {
-                if let Ok(results) = agg_clone.get_movies_by_category(&t, 1).await {
+                let fetch_res = if t == "all" || t.is_empty() {
+                    agg_clone.get_home_trending().await.map(|items| models::UnifiedMovieListResponse {
+                        items,
+                        pagination: models::UnifiedPagination {
+                            current_page: 1,
+                            total_items: 20,
+                            total_pages: 1,
+                            items_per_page: 20,
+                        }
+                    })
+                } else {
+                    agg_clone.get_movies_by_category(&t, 1).await
+                };
+
+                if let Ok(results) = fetch_res {
                     let win_weak_ui = win_weak.clone();
                     let items_clone = results.items.clone();
                     let _ = slint::invoke_from_event_loop(move || {
@@ -610,77 +808,142 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let stor_clone = stor.clone();
             let win_weak = window_weak.clone();
 
-            tokio::spawn(async move {
-                let movie_summary = models::UnifiedMovieSummary {
-                    id: slug_str.clone(),
-                    slug: slug_str.clone(),
-                    title: slug_str.clone(),
-                    origin_title: String::new(),
-                    poster_url: String::new(),
-                    backdrop_url: String::new(),
-                    genre: "Watchlist".to_string(),
-                    year: "2024".to_string(),
-                    rating: "8.5".to_string(),
-                    rank: 0,
-                    quality: "HD".to_string(),
-                    time: String::new(),
-                    category: String::new(),
-                    country: String::new(),
-                    is_saved: true,
-                    progress: 0,
+            if let Some(win) = window_weak.upgrade() {
+                let maybe_movie = find_movie_in_models(&win, &slug_str);
+                let current_saved = maybe_movie.as_ref().map(|m| m.is_saved).unwrap_or(false);
+                let new_saved = !current_saved;
+
+                // 1. Immediately toggle visual heart state across all views
+                update_movie_saved_status(&win, &slug_str, new_saved);
+
+                // 2. Prepare real metadata for persistent storage
+                let movie_summary = if let Some(m) = maybe_movie {
+                    models::UnifiedMovieSummary {
+                        id: m.id.to_string(),
+                        slug: m.slug.to_string(),
+                        title: m.title.to_string(),
+                        origin_title: m.origin_title.to_string(),
+                        poster_url: m.poster_url.to_string(),
+                        backdrop_url: m.backdrop_url.to_string(),
+                        genre: m.genre.to_string(),
+                        year: m.year.to_string(),
+                        rating: m.rating.to_string(),
+                        rank: m.rank,
+                        quality: m.quality.to_string(),
+                        time: String::new(),
+                        category: String::new(),
+                        country: String::new(),
+                        is_saved: new_saved,
+                        progress: m.progress,
+                    }
+                } else {
+                    models::UnifiedMovieSummary {
+                        id: slug_str.clone(),
+                        slug: slug_str.clone(),
+                        title: slug_str.clone(),
+                        origin_title: String::new(),
+                        poster_url: String::new(),
+                        backdrop_url: String::new(),
+                        genre: "Watchlist".to_string(),
+                        year: "2024".to_string(),
+                        rating: "8.5".to_string(),
+                        rank: 0,
+                        quality: "HD".to_string(),
+                        time: String::new(),
+                        category: String::new(),
+                        country: String::new(),
+                        is_saved: new_saved,
+                        progress: 0,
+                    }
                 };
 
-                let (_is_saved, updated_list) = stor_clone.toggle_watchlist(movie_summary).await;
-                let _ = slint::invoke_from_event_loop(move || {
-                    if let Some(win) = win_weak.upgrade() {
-                        let slint_saved: Vec<MovieItem> = updated_list.iter().map(to_slint_movie_item).collect();
-                        win.set_library_saved_movies(ModelRc::new(VecModel::from(slint_saved)));
-                    }
+                // 3. Persist and refresh saved movies list in Library
+                tokio::spawn(async move {
+                    let (_saved, updated_list) = stor_clone.toggle_watchlist(movie_summary).await;
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(w) = win_weak.upgrade() {
+                            let slint_saved: Vec<MovieItem> = updated_list.iter().map(to_slint_movie_item).collect();
+                            w.set_library_saved_movies(ModelRc::new(VecModel::from(slint_saved)));
+                        }
+                    });
                 });
-            });
+            }
         });
     }
 
-    // Play Movie -> Add to Watch History
+    // Play Movie -> Add to Watch History & Launch Stream
     {
         let window_weak = main_window.as_weak();
+        let agg = aggregator.clone();
         let stor = storage.clone();
         main_window.on_play_movie(move |slug| {
             let slug_str = slug.to_string();
             tracing::info!("Playing movie: {}", slug_str);
-            let stor_clone = stor.clone();
-            let win_weak = window_weak.clone();
+            trigger_play_movie(slug_str, window_weak.clone(), agg.clone(), stor.clone());
+        });
+    }
 
-            tokio::spawn(async move {
-                let movie_summary = models::UnifiedMovieSummary {
-                    id: slug_str.clone(),
-                    slug: slug_str.clone(),
-                    title: slug_str.clone(),
-                    origin_title: String::new(),
-                    poster_url: String::new(),
-                    backdrop_url: String::new(),
-                    genre: "Recently Played".to_string(),
-                    year: "2024".to_string(),
-                    rating: "8.5".to_string(),
-                    rank: 0,
-                    quality: "HD".to_string(),
-                    time: String::new(),
-                    category: String::new(),
-                    country: String::new(),
-                    is_saved: false,
-                    progress: 25,
-                };
-
-                let updated_history = stor_clone.add_to_history(movie_summary, 25).await;
-                let _ = slint::invoke_from_event_loop(move || {
-                    if let Some(win) = win_weak.upgrade() {
-                        let slint_hist: Vec<MovieItem> = updated_history.iter().map(to_slint_movie_item).collect();
-                        win.set_continue_movies(ModelRc::new(VecModel::from(slint_hist.clone())));
-                        win.set_library_history_movies(ModelRc::new(VecModel::from(slint_hist)));
-                        win.set_is_playing(true);
+    // Prev Movie Callback
+    {
+        let window_weak = main_window.as_weak();
+        let agg = aggregator.clone();
+        let stor = storage.clone();
+        main_window.on_prev_movie(move | | {
+            if let Some(win) = window_weak.upgrade() {
+                let current_slug = win.get_current_playing_movie().slug.to_string();
+                let trending = win.get_trending_movies();
+                let count = trending.row_count();
+                if count > 0 {
+                    let mut current_idx = 0;
+                    for i in 0..count {
+                        if let Some(m) = trending.row_data(i) {
+                            if m.slug == current_slug {
+                                current_idx = i;
+                                break;
+                            }
+                        }
                     }
-                });
-            });
+                    let prev_idx = if current_idx == 0 { count - 1 } else { current_idx - 1 };
+                    if let Some(m) = trending.row_data(prev_idx) {
+                        let slug = m.slug.to_string();
+                        win.set_current_playing_movie(m);
+                        win.set_is_playing(true);
+                        trigger_play_movie(slug, window_weak.clone(), agg.clone(), stor.clone());
+                    }
+                }
+            }
+        });
+    }
+
+    // Next Movie Callback
+    {
+        let window_weak = main_window.as_weak();
+        let agg = aggregator.clone();
+        let stor = storage.clone();
+        main_window.on_next_movie(move | | {
+            if let Some(win) = window_weak.upgrade() {
+                let current_slug = win.get_current_playing_movie().slug.to_string();
+                let trending = win.get_trending_movies();
+                let count = trending.row_count();
+                if count > 0 {
+                    let mut current_idx = 0;
+                    for i in 0..count {
+                        if let Some(m) = trending.row_data(i) {
+                            if m.slug == current_slug {
+                                current_idx = i;
+                                break;
+                            }
+                        }
+                    }
+                    let next_idx = (current_idx + 1) % count;
+                    if let Some(m) = trending.row_data(next_idx) {
+                        let slug = m.slug.to_string();
+                        win.set_current_playing_movie(m);
+                        win.set_is_playing(true);
+                        trigger_play_movie(slug, window_weak.clone(), agg.clone(), stor.clone());
+                    }
+                }
+            }
         });
     }
 

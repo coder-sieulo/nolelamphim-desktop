@@ -105,11 +105,18 @@ export component LibraryPage inherits Flickable {
         }
 
         // Saved Movies Grid
-        if root.active-tab == "saved" && root.saved-movies.length > 0 : HorizontalLayout {
-            spacing: 16px;
-            alignment: start;
+        if root.active-tab == "saved" && root.saved-movies.length > 0 : Rectangle {
+            property <int> cols: 5;
+            property <length> item-w: 160px;
+            property <length> item-h: 275px;
+            property <length> gap-x: 16px;
+            property <length> gap-y: 20px;
 
-            for item in root.saved-movies : MovieCard {
+            height: Math.ceil(root.saved-movies.length / cols) * (item-h + gap-y);
+
+            for item[idx] in root.saved-movies : MovieCard {
+                x: (idx - Math.floor(idx / cols) * cols) * (item-w + gap-x);
+                y: Math.floor(idx / cols) * (item-h + gap-y);
                 item: item;
                 clicked => { root.movie-selected(item.slug); }
                 play-clicked => { root.play-movie(item.slug); }
@@ -118,11 +125,18 @@ export component LibraryPage inherits Flickable {
         }
 
         // History Movies Grid
-        if root.active-tab == "history" && root.history-movies.length > 0 : HorizontalLayout {
-            spacing: 16px;
-            alignment: start;
+        if root.active-tab == "history" && root.history-movies.length > 0 : Rectangle {
+            property <int> cols: 5;
+            property <length> item-w: 160px;
+            property <length> item-h: 275px;
+            property <length> gap-x: 16px;
+            property <length> gap-y: 20px;
 
-            for item in root.history-movies : MovieCard {
+            height: Math.ceil(root.history-movies.length / cols) * (item-h + gap-y);
+
+            for item[idx] in root.history-movies : MovieCard {
+                x: (idx - Math.floor(idx / cols) * cols) * (item-w + gap-x);
+                y: Math.floor(idx / cols) * (item-h + gap-y);
                 item: item;
                 clicked => { root.movie-selected(item.slug); }
                 play-clicked => { root.play-movie(item.slug); }

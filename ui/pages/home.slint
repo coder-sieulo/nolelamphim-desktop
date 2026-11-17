@@ -121,6 +121,10 @@ export component HomePage inherits Flickable {
                     color: Theme.text-muted;
                     font-size: 12px;
                     vertical-alignment: center;
+
+                    TouchArea {
+                        clicked => { root.see-all("continue"); }
+                    }
                 }
             }
 
@@ -172,6 +176,10 @@ export component HomePage inherits Flickable {
                     color: Theme.text-muted;
                     font-size: 12px;
                     vertical-alignment: center;
+
+                    TouchArea {
+                        clicked => { root.see-all("mood"); }
+                    }
                 }
             }
 

@@ -92,6 +92,11 @@ export component MovieCard inherits Rectangle {
                 }
             }
 
+            // Background card click area
+            touch := TouchArea {
+                clicked => { root.clicked(); }
+            }
+
             // Action Buttons Overlay on Hover
             if touch.has-hover : Rectangle {
                 width: 100%;
@@ -144,10 +149,6 @@ export component MovieCard inherits Rectangle {
                         }
                     }
                 }
-            }
-
-            touch := TouchArea {
-                clicked => { root.clicked(); }
             }
         }
 

@@ -66,7 +66,7 @@ export component DiscoverPage inherits Flickable {
                     padding-right: 16px;
                     Text { text: "Tất cả"; font-size: 12px; font-weight: 600; color: root.selected-type == "all" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
                 }
-                TouchArea { clicked => { root.type-selected("all"); } }
+                TouchArea { clicked => { root.selected-type = "all"; root.type-selected("all"); } }
             }
 
             Rectangle {
@@ -81,7 +81,7 @@ export component DiscoverPage inherits Flickable {
                     padding-right: 16px;
                     Text { text: "Phim Lẻ"; font-size: 12px; font-weight: 600; color: root.selected-type == "phim-le" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
                 }
-                TouchArea { clicked => { root.type-selected("phim-le"); } }
+                TouchArea { clicked => { root.selected-type = "phim-le"; root.type-selected("phim-le"); } }
             }
 
             Rectangle {
@@ -96,7 +96,7 @@ export component DiscoverPage inherits Flickable {
                     padding-right: 16px;
                     Text { text: "Phim Bộ"; font-size: 12px; font-weight: 600; color: root.selected-type == "phim-bo" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
                 }
-                TouchArea { clicked => { root.type-selected("phim-bo"); } }
+                TouchArea { clicked => { root.selected-type = "phim-bo"; root.type-selected("phim-bo"); } }
             }
 
             Rectangle {
@@ -111,7 +111,7 @@ export component DiscoverPage inherits Flickable {
                     padding-right: 16px;
                     Text { text: "Hoạt Hình"; font-size: 12px; font-weight: 600; color: root.selected-type == "hoat-hinh" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
                 }
-                TouchArea { clicked => { root.type-selected("hoat-hinh"); } }
+                TouchArea { clicked => { root.selected-type = "hoat-hinh"; root.type-selected("hoat-hinh"); } }
             }
 
             Rectangle {
@@ -126,7 +126,7 @@ export component DiscoverPage inherits Flickable {
                     padding-right: 16px;
                     Text { text: "Chiếu Rạp"; font-size: 12px; font-weight: 600; color: root.selected-type == "phim-chieu-rap" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
                 }
-                TouchArea { clicked => { root.type-selected("phim-chieu-rap"); } }
+                TouchArea { clicked => { root.selected-type = "phim-chieu-rap"; root.type-selected("phim-chieu-rap"); } }
             }
         }
 
@@ -175,11 +175,18 @@ export component DiscoverPage inherits Flickable {
             }
         }
 
-        if root.movies.length > 0 : HorizontalLayout {
-            spacing: 16px;
-            alignment: start;
+        if root.movies.length > 0 : Rectangle {
+            property <int> cols: 5;
+            property <length> item-w: 160px;
+            property <length> item-h: 275px;
+            property <length> gap-x: 16px;
+            property <length> gap-y: 20px;
 
-            for item in root.movies : MovieCard {
+            height: Math.ceil(root.movies.length / cols) * (item-h + gap-y);
+
+            for item[idx] in root.movies : MovieCard {
+                x: (idx - Math.floor(idx / cols) * cols) * (item-w + gap-x);
+                y: Math.floor(idx / cols) * (item-h + gap-y);
                 item: item;
                 clicked => { root.movie-selected(item.slug); }
                 play-clicked => { root.play-movie(item.slug); }

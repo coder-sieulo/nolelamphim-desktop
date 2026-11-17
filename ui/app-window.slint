@@ -53,6 +53,8 @@ export component AppWindow inherits Window {
     callback filter-genre(string);
     callback filter-type(string);
     callback change-page(int);
+    callback prev-movie();
+    callback next-movie();
 
     HorizontalLayout {
         // Left Column: Navigation Sidebar (224px)
@@ -66,6 +68,20 @@ export component AppWindow inherits Window {
             change-provider(p) => {
                 root.current-provider = p;
                 root.change-provider(p);
+            }
+            playlist-selected(slug) => {
+                root.active-page = "Discover";
+                root.filter-genre(slug);
+            }
+            upgrade-clicked => {
+                root.active-page = "Library";
+            }
+            quick-action(action) => {
+                if (action == "settings") {
+                    root.active-page = "Library";
+                } else if (action == "notifications") {
+                    root.active-page = "Home";
+                }
             }
         }
 
@@ -102,7 +118,13 @@ export component AppWindow inherits Window {
                 movie-selected(slug) => { root.select-movie(slug); }
                 play-movie(slug) => { root.play-movie(slug); }
                 toggle-save(slug) => { root.toggle-watchlist(slug); }
-                see-all(type) => { root.active-page = "Discover"; }
+                see-all(type) => {
+                    if (type == "continue") {
+                        root.active-page = "Library";
+                    } else {
+                        root.active-page = "Discover";
+                    }
+                }
             }
 
             if root.active-page == "Discover" : DiscoverPage {
@@ -154,6 +176,15 @@ export component AppWindow inherits Window {
             }
             toggle-play => {
                 root.play-movie(root.current-playing-movie.slug);
+            }
+            toggle-save(slug) => {
+                root.toggle-watchlist(slug);
+            }
+            prev-track => {
+                root.prev-movie();
+            }
+            next-track => {
+                root.next-movie();
             }
         }
     }

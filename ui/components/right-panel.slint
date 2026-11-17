@@ -10,6 +10,9 @@ export component RightPanel inherits Rectangle {
     callback movie-selected(string);
     callback genre-selected(string);
     callback toggle-play();
+    callback toggle-save(string);
+    callback prev-track();
+    callback next-track();
 
     width: 290px;
     background: #090a0d88;
@@ -66,6 +69,11 @@ export component RightPanel inherits Rectangle {
                     border-radius: 8px;
                     background: sug-touch.has-hover ? #ffffff0d : #00000000;
 
+                    // Row touch area
+                    sug-touch := TouchArea {
+                        clicked => { root.movie-selected(item.slug); }
+                    }
+
                     HorizontalLayout {
                         padding: 4px;
                         spacing: 10px;
@@ -115,25 +123,28 @@ export component RightPanel inherits Rectangle {
                             }
                         }
 
-                        // Select / Play button
+                        // Save / Bookmark action button
                         Rectangle {
                             width: 26px;
                             height: 26px;
                             border-radius: 13px;
-                            background: #ffffff14;
+                            background: item.is-saved ? Theme.primary.with-alpha(0.3) : save-touch.has-hover ? #ffffff24 : #ffffff14;
+                            border-width: 1px;
+                            border-color: item.is-saved ? Theme.primary : #ffffff18;
 
                             Text {
-                                text: "▶";
-                                color: Theme.text-primary;
-                                font-size: 9px;
+                                text: item.is-saved ? "✓" : "+";
+                                color: item.is-saved ? Theme.primary-light : Theme.text-primary;
+                                font-size: 12px;
+                                font-weight: 700;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
                             }
-                        }
-                    }
 
-                    sug-touch := TouchArea {
-                        clicked => { root.movie-selected(item.slug); }
+                            save-touch := TouchArea {
+                                clicked => { root.toggle-save(item.slug); }
+                            }
+                        }
                     }
                 }
             }
@@ -178,7 +189,7 @@ export component RightPanel inherits Rectangle {
                             padding-right: 10px;
                             Text { text: "Action"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
                         }
-                        TouchArea { clicked => { root.genre-selected("Action"); } }
+                        TouchArea { clicked => { root.selected-genre = "Action"; root.genre-selected("Action"); } }
                     }
 
                     Rectangle {
@@ -193,7 +204,7 @@ export component RightPanel inherits Rectangle {
                             padding-right: 10px;
                             Text { text: "Sci-Fi"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
                         }
-                        TouchArea { clicked => { root.genre-selected("Sci-Fi"); } }
+                        TouchArea { clicked => { root.selected-genre = "Sci-Fi"; root.genre-selected("Sci-Fi"); } }
                     }
 
                     Rectangle {
@@ -208,7 +219,7 @@ export component RightPanel inherits Rectangle {
                             padding-right: 10px;
                             Text { text: "Drama"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
                         }
-                        TouchArea { clicked => { root.genre-selected("Drama"); } }
+                        TouchArea { clicked => { root.selected-genre = "Drama"; root.genre-selected("Drama"); } }
                     }
                 }
 
@@ -227,7 +238,7 @@ export component RightPanel inherits Rectangle {
                             padding-right: 10px;
                             Text { text: "Thriller"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
                         }
-                        TouchArea { clicked => { root.genre-selected("Thriller"); } }
+                        TouchArea { clicked => { root.selected-genre = "Thriller"; root.genre-selected("Thriller"); } }
                     }
 
                     Rectangle {
@@ -242,7 +253,7 @@ export component RightPanel inherits Rectangle {
                             padding-right: 10px;
                             Text { text: "Anime"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
                         }
-                        TouchArea { clicked => { root.genre-selected("Anime"); } }
+                        TouchArea { clicked => { root.selected-genre = "Anime"; root.genre-selected("Anime"); } }
                     }
                 }
             }
@@ -311,11 +322,23 @@ export component RightPanel inherits Rectangle {
                         }
                     }
 
-                    Text {
-                        text: "♥";
-                        color: Theme.primary;
-                        font-size: 16px;
-                        vertical-alignment: center;
+                    Rectangle {
+                        width: 28px;
+                        height: 28px;
+                        border-radius: 14px;
+                        background: heart-touch.has-hover ? #ffffff18 : #00000000;
+
+                        Text {
+                            text: root.current-playing.is-saved ? "♥" : "♡";
+                            color: root.current-playing.is-saved ? Theme.primary : Theme.text-muted;
+                            font-size: 16px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        heart-touch := TouchArea {
+                            clicked => { root.toggle-save(root.current-playing.slug); }
+                        }
                     }
                 }
 
@@ -344,7 +367,25 @@ export component RightPanel inherits Rectangle {
                         spacing: 14px;
                         alignment: center;
 
-                        Text { text: "⏮"; font-size: 13px; color: Theme.text-secondary; vertical-alignment: center; }
+                        // Prev Track
+                        Rectangle {
+                            width: 28px;
+                            height: 28px;
+                            border-radius: 14px;
+                            background: prev-touch.has-hover ? #ffffff18 : #00000000;
+
+                            Text {
+                                text: "⏮";
+                                font-size: 13px;
+                                color: prev-touch.has-hover ? Theme.text-primary : Theme.text-secondary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            prev-touch := TouchArea {
+                                clicked => { root.prev-track(); }
+                            }
+                        }
 
                         // Play/Pause Circle
                         Rectangle {
@@ -370,7 +411,25 @@ export component RightPanel inherits Rectangle {
                             }
                         }
 
-                        Text { text: "⏭"; font-size: 13px; color: Theme.text-secondary; vertical-alignment: center; }
+                        // Next Track
+                        Rectangle {
+                            width: 28px;
+                            height: 28px;
+                            border-radius: 14px;
+                            background: next-touch.has-hover ? #ffffff18 : #00000000;
+
+                            Text {
+                                text: "⏭";
+                                font-size: 13px;
+                                color: next-touch.has-hover ? Theme.text-primary : Theme.text-secondary;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            next-touch := TouchArea {
+                                clicked => { root.next-track(); }
+                            }
+                        }
                     }
 
                     Text { text: "02:18"; font-size: 10px; color: Theme.text-muted; vertical-alignment: center; }
