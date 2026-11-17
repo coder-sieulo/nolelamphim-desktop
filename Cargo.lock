@@ -2899,6 +2899,7 @@ dependencies = [
  "dotenvy",
  "futures",
  "image 0.25.10",
+ "raw-window-handle",
  "reqwest",
  "serde",
  "serde_json",
@@ -4250,6 +4251,7 @@ dependencies = [
  "num-traits",
  "once_cell",
  "pin-weak",
+ "raw-window-handle",
  "slint-macros",
  "vtable",
 ]

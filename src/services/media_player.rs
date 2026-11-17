@@ -8,12 +8,143 @@ use crate::models::converter::format_cinema_duration;
 use crate::AppWindow;
 use slint::SharedString;
 
+#[cfg(target_os = "linux")]
+pub mod x11_embed {
+    use std::ffi::c_void;
+    use std::os::raw::{c_int, c_uint, c_ulong};
+
+    type Display = c_void;
+    type Window = c_ulong;
+
+    #[link(name = "X11")]
+    extern "C" {
+        fn XOpenDisplay(display_name: *const std::os::raw::c_char) -> *mut Display;
+        fn XCloseDisplay(display: *mut Display) -> c_int;
+        fn XCreateSimpleWindow(
+            display: *mut Display,
+            parent: Window,
+            x: c_int,
+            y: c_int,
+            width: c_uint,
+            height: c_uint,
+            border_width: c_uint,
+            border: c_ulong,
+            background: c_ulong,
+        ) -> Window;
+        fn XMapWindow(display: *mut Display, w: Window) -> c_int;
+        fn XUnmapWindow(display: *mut Display, w: Window) -> c_int;
+        fn XMoveResizeWindow(
+            display: *mut Display,
+            w: Window,
+            x: c_int,
+            y: c_int,
+            width: c_uint,
+            height: c_uint,
+        ) -> c_int;
+        fn XDestroyWindow(display: *mut Display, w: Window) -> c_int;
+        fn XFlush(display: *mut Display) -> c_int;
+    }
+
+    pub struct X11ChildWindow {
+        display: *mut Display,
+        pub child_xid: u64,
+    }
+
+    unsafe impl Send for X11ChildWindow {}
+    unsafe impl Sync for X11ChildWindow {}
+
+    impl X11ChildWindow {
+        pub fn create(parent_xid: u64, x: i32, y: i32, width: u32, height: u32) -> Option<Self> {
+            unsafe {
+                let display = XOpenDisplay(std::ptr::null());
+                if display.is_null() {
+                    return None;
+                }
+                let child = XCreateSimpleWindow(
+                    display,
+                    parent_xid as Window,
+                    x as c_int,
+                    y as c_int,
+                    width as c_uint,
+                    height as c_uint,
+                    0,
+                    0,
+                    0,
+                );
+                if child == 0 {
+                    XCloseDisplay(display);
+                    return None;
+                }
+                XMapWindow(display, child);
+                XFlush(display);
+                Some(Self {
+                    display,
+                    child_xid: child as u64,
+                })
+            }
+        }
+
+        pub fn resize(&self, x: i32, y: i32, width: u32, height: u32) {
+            unsafe {
+                if !self.display.is_null() && self.child_xid != 0 {
+                    XMoveResizeWindow(
+                        self.display,
+                        self.child_xid as Window,
+                        x as c_int,
+                        y as c_int,
+                        width as c_uint,
+                        height as c_uint,
+                    );
+                    XFlush(self.display);
+                }
+            }
+        }
+
+        pub fn hide(&self) {
+            unsafe {
+                if !self.display.is_null() && self.child_xid != 0 {
+                    XUnmapWindow(self.display, self.child_xid as Window);
+                    XFlush(self.display);
+                }
+            }
+        }
+
+        pub fn show(&self) {
+            unsafe {
+                if !self.display.is_null() && self.child_xid != 0 {
+                    XMapWindow(self.display, self.child_xid as Window);
+                    XFlush(self.display);
+                }
+            }
+        }
+    }
+
+    impl Drop for X11ChildWindow {
+        fn drop(&mut self) {
+            unsafe {
+                if !self.display.is_null() {
+                    if self.child_xid != 0 {
+                        XDestroyWindow(self.display, self.child_xid as Window);
+                        XFlush(self.display);
+                        self.child_xid = 0;
+                    }
+                    XCloseDisplay(self.display);
+                    self.display = std::ptr::null_mut();
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct MediaPlayerService {
     socket_path: PathBuf,
     child: Arc<Mutex<Option<Child>>>,
     active_stream: Arc<Mutex<Option<String>>>,
     active_title: Arc<Mutex<Option<(String, String)>>>,
+    parent_window_id: Arc<Mutex<Option<u64>>>,
+    #[cfg(target_os = "linux")]
+    embedded_child_window: Arc<Mutex<Option<Arc<x11_embed::X11ChildWindow>>>>,
 }
 
 impl Default for MediaPlayerService {
@@ -30,7 +161,17 @@ impl MediaPlayerService {
             child: Arc::new(Mutex::new(None)),
             active_stream: Arc::new(Mutex::new(None)),
             active_title: Arc::new(Mutex::new(None)),
+            parent_window_id: Arc::new(Mutex::new(None)),
+            #[cfg(target_os = "linux")]
+            embedded_child_window: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// Sets the host application window ID for embedding
+    pub async fn set_parent_window_id(&self, xid: u64) {
+        let mut p = self.parent_window_id.lock().await;
+        *p = Some(xid);
+        tracing::info!("MediaPlayerService registered parent window ID: {}", xid);
     }
 
     /// Checks if MPV player instance is currently running and responsive
@@ -53,9 +194,8 @@ impl MediaPlayerService {
         }
     }
 
-    /// Plays a video stream URL with given movie title and episode name.
+    /// Plays a video stream URL embedded directly inside the host app window.
     /// If MPV is already running, seamlessly loads the new stream via IPC.
-    /// If not running, launches a new native MPV player window and starts two-way IPC sync.
     pub async fn play(
         &self,
         stream_url: &str,
@@ -69,7 +209,7 @@ impl MediaPlayerService {
         }
 
         tracing::info!(
-            "MediaPlayerService::play -> title='{}', episode='{}', url='{}'",
+            "MediaPlayerService::play (embedded) -> title='{}', episode='{}', url='{}'",
             movie_title,
             episode_name,
             trimmed_url
@@ -107,8 +247,7 @@ impl MediaPlayerService {
         let full_title = format!("Nô Lệ Làm Phim - {} [{}]", movie_title, episode_name);
 
         // Check if mpv is available on the system
-        let has_mpv = std::path::Path::new("/usr/bin/mpv").exists()
-            || which_binary("mpv");
+        let has_mpv = std::path::Path::new("/usr/bin/mpv").exists() || which_binary("mpv");
 
         if has_mpv {
             let mut cmd = Command::new("mpv");
@@ -117,13 +256,61 @@ impl MediaPlayerService {
             cmd.arg("--x11-name=nolelamphim-desktop");
             cmd.arg(format!("--input-ipc-server={}", self.socket_path.display()));
             cmd.arg("--keep-open=yes");
-            cmd.arg("--geometry=75%x75%+50%+50%");
-            cmd.arg("--autofit=1280x720");
             cmd.arg("--hwdec=auto-safe");
             cmd.arg("--osd-level=1");
             cmd.arg("--msg-level=all=warn");
             cmd.stdout(std::process::Stdio::null());
             cmd.stderr(std::process::Stdio::null());
+
+            // Prepare embedded window on Linux X11
+            #[cfg(target_os = "linux")]
+            {
+                let mut parent_id = *self.parent_window_id.lock().await;
+                if parent_id.is_none() {
+                    // Fallback to searching window ID by title with xdotool
+                    if let Ok(out) = std::process::Command::new("xdotool")
+                        .args(["search", "--name", "Nolelamphim"])
+                        .output()
+                    {
+                        if let Ok(text) = String::from_utf8(out.stdout) {
+                            if let Some(line) = text.lines().next() {
+                                if let Ok(id) = line.trim().parse::<u64>() {
+                                    parent_id = Some(id);
+                                    let mut p = self.parent_window_id.lock().await;
+                                    *p = Some(id);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if let Some(parent_xid) = parent_id {
+                    let is_theater = win_weak.upgrade().map(|w| w.get_theater_mode()).unwrap_or(false);
+                    let (x, y, w, h) = if is_theater {
+                        (12, 54, 1376, 740)
+                    } else {
+                        (248, 142, 836, 480)
+                    };
+
+                    let mut win_guard = self.embedded_child_window.lock().await;
+                    if win_guard.is_none() {
+                        if let Some(child_win) = x11_embed::X11ChildWindow::create(parent_xid, x, y, w, h) {
+                            let wid = child_win.child_xid;
+                            tracing::info!("Created embedded X11 child window ID {} inside parent {}", wid, parent_xid);
+                            cmd.arg(format!("--wid={}", wid));
+                            *win_guard = Some(Arc::new(child_win));
+                        }
+                    } else if let Some(ref child_win) = *win_guard {
+                        child_win.resize(x, y, w, h);
+                        child_win.show();
+                        cmd.arg(format!("--wid={}", child_win.child_xid));
+                    }
+                } else {
+                    // Fallback if no parent window found
+                    cmd.arg("--geometry=75%x75%+50%+50%");
+                    cmd.arg("--autofit=1280x720");
+                }
+            }
 
             match cmd.spawn() {
                 Ok(child) => {
@@ -187,6 +374,40 @@ impl MediaPlayerService {
         }
     }
 
+    /// Resizes and repositions the embedded video viewport inside the app
+    pub async fn update_viewport(&self, is_theater: bool) {
+        #[cfg(target_os = "linux")]
+        {
+            let (x, y, w, h) = if is_theater {
+                (12, 54, 1376, 740)
+            } else {
+                (248, 142, 836, 480)
+            };
+            let guard = self.embedded_child_window.lock().await;
+            if let Some(ref child_win) = *guard {
+                child_win.resize(x, y, w, h);
+                child_win.show();
+            }
+        }
+    }
+
+    /// Hides embedded video when navigating away from player
+    pub async fn hide_embedded(&self) {
+        #[cfg(target_os = "linux")]
+        {
+            let guard = self.embedded_child_window.lock().await;
+            if let Some(ref child_win) = *guard {
+                child_win.hide();
+            }
+        }
+        let _ = self.send_command(serde_json::json!(["set_property", "pause", true])).await;
+    }
+
+    /// Shows embedded video when navigating to player
+    pub async fn show_embedded(&self, is_theater: bool) {
+        self.update_viewport(is_theater).await;
+    }
+
     /// Toggles play / pause state
     pub async fn toggle_pause(&self) -> Result<(), String> {
         let _ = self.send_command(serde_json::json!(["cycle", "pause"])).await;
@@ -242,6 +463,11 @@ impl MediaPlayerService {
         }
         if self.socket_path.exists() {
             let _ = std::fs::remove_file(&self.socket_path);
+        }
+        #[cfg(target_os = "linux")]
+        {
+            let mut win_guard = self.embedded_child_window.lock().await;
+            *win_guard = None;
         }
         Ok(())
     }

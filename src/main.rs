@@ -350,6 +350,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let main_window = AppWindow::new()?;
 
+    let raw_handle_opt = {
+        use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+        let handle = main_window.window().window_handle();
+        if let Ok(h) = handle.window_handle() {
+            match h.as_raw() {
+                RawWindowHandle::Xlib(xlib) => {
+                    tracing::info!("Detected Xlib window ID: {}", xlib.window);
+                    Some(xlib.window)
+                }
+                RawWindowHandle::Xcb(xcb) => {
+                    tracing::info!("Detected Xcb window ID: {}", xcb.window.get());
+                    Some(xcb.window.get() as u64)
+                }
+                _ => None,
+            }
+        } else {
+            None
+        }
+    };
+    if let Some(xid) = raw_handle_opt {
+        media_player.set_parent_window_id(xid).await;
+    }
+
     // Populate Initial Mock Data matching Cinefy Mockup
     let dune = create_sample_movie(
         "1",
@@ -627,10 +650,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Callbacks
     {
         let window_weak = main_window.as_weak();
+        let player = media_player.clone();
         main_window.on_navigate(move |page| {
             tracing::info!("Navigating to: {}", page);
             if let Some(window) = window_weak.upgrade() {
-                window.set_active_page(page);
+                window.set_active_page(page.clone());
+                let p = player.clone();
+                let is_th = window.get_theater_mode();
+                let page_str = page.to_string();
+                tokio::spawn(async move {
+                    if page_str == "Player" {
+                        p.show_embedded(is_th).await;
+                    } else {
+                        p.hide_embedded().await;
+                    }
+                });
             }
         });
     }
@@ -1150,7 +1184,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 tracing::info!("Cinema player theater mode toggled: {}", !is_theater);
                 let pl = player.clone();
                 tokio::spawn(async move {
-                    let _ = pl.toggle_fullscreen().await;
+                    pl.update_viewport(!is_theater).await;
                 });
             }
         });
