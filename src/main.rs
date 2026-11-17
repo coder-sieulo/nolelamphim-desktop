@@ -9,7 +9,7 @@ use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
 use config::AppConfig;
 use models::{to_slint_episode_item, to_slint_movie_item, to_slint_person_item};
-use services::MovieAggregatorService;
+use services::{ImageCacheService, MovieAggregatorService, StorageService};
 
 slint::include_modules!();
 
@@ -49,10 +49,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = AppConfig::from_env();
     let aggregator = Arc::new(MovieAggregatorService::new(&config));
+    let storage = Arc::new(StorageService::new());
+    let image_cache = Arc::new(ImageCacheService::new(config.enable_image_cache));
 
     let main_window = AppWindow::new()?;
 
-    // Populate Initial Fallback Data matching Cinefy Mockup
+    // Populate Initial Mock Data matching Cinefy Mockup
     let dune = create_sample_movie(
         "1",
         "dune-part-two",
@@ -226,10 +228,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
     main_window.set_discover_genres(ModelRc::new(VecModel::from(genres)));
 
-    let saved_vec = vec![dune.clone(), interstellar.clone(), inception.clone()];
-    main_window.set_library_saved_movies(ModelRc::new(VecModel::from(saved_vec)));
-    let history_vec = vec![interstellar.clone(), the_batman.clone()];
-    main_window.set_library_history_movies(ModelRc::new(VecModel::from(history_vec)));
+    // Load Persistent Watchlist & History from Storage
+    {
+        let saved = storage.get_watchlist().await;
+        if !saved.is_empty() {
+            let slint_saved: Vec<MovieItem> = saved.iter().map(to_slint_movie_item).collect();
+            main_window.set_library_saved_movies(ModelRc::new(VecModel::from(slint_saved)));
+        } else {
+            let saved_vec = vec![dune.clone(), interstellar.clone(), inception.clone()];
+            main_window.set_library_saved_movies(ModelRc::new(VecModel::from(saved_vec)));
+        }
+
+        let history = storage.get_history().await;
+        if !history.is_empty() {
+            let slint_hist: Vec<MovieItem> = history.iter().map(to_slint_movie_item).collect();
+            main_window.set_continue_movies(ModelRc::new(VecModel::from(slint_hist.clone())));
+            main_window.set_library_history_movies(ModelRc::new(VecModel::from(slint_hist)));
+        } else {
+            let history_vec = vec![interstellar.clone(), the_batman.clone()];
+            main_window.set_library_history_movies(ModelRc::new(VecModel::from(history_vec)));
+        }
+    }
 
     let suggestions_vec = vec![eeaao.clone(), whiplash.clone(), fight_club.clone(), la_la_land.clone()];
     main_window.set_right_panel_suggestions(ModelRc::new(VecModel::from(suggestions_vec)));
@@ -269,11 +288,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
+        let cache = image_cache.clone();
         tokio::spawn(async move {
             tracing::info!("Fetching live trending movies from primary API provider...");
             match agg.get_home_trending().await {
                 Ok(live_movies) if !live_movies.is_empty() => {
                     tracing::info!("Successfully fetched {} live movies from API!", live_movies.len());
+                    
+                    // Background image caching
+                    for m in &live_movies {
+                        if !m.poster_url.is_empty() {
+                            let url = m.poster_url.clone();
+                            let c = cache.clone();
+                            tokio::spawn(async move {
+                                let _ = c.fetch_image(&url).await;
+                            });
+                        }
+                    }
+
                     let slint_movies: Vec<MovieItem> = live_movies.iter().map(to_slint_movie_item).collect();
                     let first = slint_movies.first().cloned();
                     let _ = slint::invoke_from_event_loop(move || {
@@ -307,6 +339,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
+        let cache = image_cache.clone();
         main_window.on_select_movie(move |slug| {
             let slug_str = slug.to_string();
             tracing::info!("User selected movie: {}", slug_str);
@@ -316,8 +349,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let win_weak = window_weak.clone();
             let agg_clone = agg.clone();
+            let c = cache.clone();
             tokio::spawn(async move {
                 if let Ok(detail) = agg_clone.get_movie_detail(&slug_str).await {
+                    if !detail.summary.poster_url.is_empty() {
+                        let url = detail.summary.poster_url.clone();
+                        tokio::spawn(async move {
+                            let _ = c.fetch_image(&url).await;
+                        });
+                    }
+
                     let slint_detail_movie = to_slint_movie_item(&detail.summary);
                     let synopsis = SharedString::from(&detail.content);
                     let director = SharedString::from(&detail.director);
@@ -440,13 +481,91 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    main_window.on_play_movie(move |slug| {
-        tracing::info!("Playing movie slug: {}", slug);
-    });
+    // Toggle Watchlist Persistent Callback
+    {
+        let window_weak = main_window.as_weak();
+        let stor = storage.clone();
+        main_window.on_toggle_watchlist(move |slug| {
+            let slug_str = slug.to_string();
+            tracing::info!("Toggle watchlist for movie: {}", slug_str);
+            let stor_clone = stor.clone();
+            let win_weak = window_weak.clone();
 
-    main_window.on_toggle_watchlist(move |slug| {
-        tracing::info!("Toggled watchlist for: {}", slug);
-    });
+            tokio::spawn(async move {
+                let movie_summary = models::UnifiedMovieSummary {
+                    id: slug_str.clone(),
+                    slug: slug_str.clone(),
+                    title: slug_str.clone(),
+                    origin_title: String::new(),
+                    poster_url: String::new(),
+                    backdrop_url: String::new(),
+                    genre: "Watchlist".to_string(),
+                    year: "2024".to_string(),
+                    rating: "8.5".to_string(),
+                    rank: 0,
+                    quality: "HD".to_string(),
+                    time: String::new(),
+                    category: String::new(),
+                    country: String::new(),
+                    is_saved: true,
+                    progress: 0,
+                };
+
+                let (_is_saved, updated_list) = stor_clone.toggle_watchlist(movie_summary).await;
+                let slint_saved: Vec<MovieItem> = updated_list.iter().map(to_slint_movie_item).collect();
+
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(win) = win_weak.upgrade() {
+                        win.set_library_saved_movies(ModelRc::new(VecModel::from(slint_saved)));
+                    }
+                });
+            });
+        });
+    }
+
+    // Play Movie -> Add to Watch History
+    {
+        let window_weak = main_window.as_weak();
+        let stor = storage.clone();
+        main_window.on_play_movie(move |slug| {
+            let slug_str = slug.to_string();
+            tracing::info!("Playing movie: {}", slug_str);
+            let stor_clone = stor.clone();
+            let win_weak = window_weak.clone();
+
+            tokio::spawn(async move {
+                let movie_summary = models::UnifiedMovieSummary {
+                    id: slug_str.clone(),
+                    slug: slug_str.clone(),
+                    title: slug_str.clone(),
+                    origin_title: String::new(),
+                    poster_url: String::new(),
+                    backdrop_url: String::new(),
+                    genre: "Recently Played".to_string(),
+                    year: "2024".to_string(),
+                    rating: "8.5".to_string(),
+                    rank: 0,
+                    quality: "HD".to_string(),
+                    time: String::new(),
+                    category: String::new(),
+                    country: String::new(),
+                    is_saved: false,
+                    progress: 25,
+                };
+
+                let updated_history = stor_clone.add_to_history(movie_summary, 25).await;
+                let slint_hist: Vec<MovieItem> = updated_history.iter().map(to_slint_movie_item).collect();
+
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(win) = win_weak.upgrade() {
+                        win.set_continue_movies(ModelRc::new(VecModel::from(slint_hist.clone())));
+                        win.set_library_history_movies(ModelRc::new(VecModel::from(slint_hist)));
+                        win.set_is_playing(true);
+                    }
+                });
+            });
+        });
+    }
 
     tracing::info!("Nolelamphim Desktop UI ready. Launching window...");
     main_window.run()?;
