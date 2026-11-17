@@ -2897,6 +2897,7 @@ dependencies = [
  "async-trait",
  "directories",
  "dotenvy",
+ "futures",
  "image 0.25.10",
  "reqwest",
  "serde",

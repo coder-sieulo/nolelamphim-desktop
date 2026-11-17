@@ -92,6 +92,8 @@ export component Sidebar inherits Rectangle {
                         root.change-provider("NguonC");
                     } else if (root.current-provider == "NguonC") {
                         root.change-provider("Vsmov");
+                    } else if (root.current-provider == "Vsmov") {
+                        root.change-provider("Supabase");
                     } else {
                         root.change-provider("PhimAPI");
                     }

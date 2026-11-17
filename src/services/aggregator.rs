@@ -2,7 +2,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::api::traits::MovieProvider;
-use crate::api::{NguonCEngine, PhimApiEngine, VsmovEngine};
+use crate::api::{NguonCEngine, PhimApiEngine, SupabaseEngine, VsmovEngine};
 use crate::config::AppConfig;
 use crate::models::{
     UnifiedCategoryItem, UnifiedMovieDetail, UnifiedMovieListResponse, UnifiedMovieSummary,
@@ -12,6 +12,7 @@ pub struct MovieAggregatorService {
     phimapi: Arc<PhimApiEngine>,
     nguonc: Arc<NguonCEngine>,
     vsmov: Arc<VsmovEngine>,
+    supabase: Arc<SupabaseEngine>,
     active_provider: Arc<RwLock<String>>,
 }
 
@@ -29,11 +30,17 @@ impl MovieAggregatorService {
             config.vsmov_base_url.clone(),
             config.request_timeout_secs,
         ));
+        let supabase = Arc::new(SupabaseEngine::new(
+            config.supabase_url.clone(),
+            config.supabase_anon_key.clone(),
+            config.request_timeout_secs,
+        ));
 
         Self {
             phimapi,
             nguonc,
             vsmov,
+            supabase,
             active_provider: Arc::new(RwLock::new(config.default_provider.clone())),
         }
     }
@@ -50,6 +57,7 @@ impl MovieAggregatorService {
 
     fn get_engine(&self, id: &str) -> Arc<dyn MovieProvider> {
         match id {
+            "supabase" => self.supabase.clone() as Arc<dyn MovieProvider>,
             "nguonc" => self.nguonc.clone() as Arc<dyn MovieProvider>,
             "vsmov" => self.vsmov.clone() as Arc<dyn MovieProvider>,
             _ => self.phimapi.clone() as Arc<dyn MovieProvider>,
@@ -65,9 +73,14 @@ impl MovieAggregatorService {
             Ok(movies) if !movies.is_empty() => Ok(movies),
             Err(e) => {
                 tracing::warn!("Primary provider '{}' failed for home trending: {}. Falling back...", active_id, e);
-                // Fallback to PhimAPI or NguonC
+                // Fallback sequence: PhimAPI -> Supabase -> NguonC
                 if active_id != "phimapi" {
                     if let Ok(movies) = self.phimapi.get_home_trending().await {
+                        return Ok(movies);
+                    }
+                }
+                if active_id != "supabase" {
+                    if let Ok(movies) = self.supabase.get_home_trending().await {
                         return Ok(movies);
                     }
                 }
@@ -124,7 +137,12 @@ impl MovieAggregatorService {
                 Ok(detail)
             }
             Err(e) => {
-                tracing::warn!("Failed to fetch movie detail for '{}': {}", slug, e);
+                tracing::warn!("Failed to fetch movie detail for '{}': {}. Trying Supabase fallback...", slug, e);
+                if active_id != "supabase" {
+                    if let Ok(detail) = self.supabase.get_movie_detail(slug).await {
+                        return Ok(detail);
+                    }
+                }
                 Err(e)
             }
         }

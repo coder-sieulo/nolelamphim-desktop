@@ -63,6 +63,78 @@ pub fn open_target_url(url: &str) {
     }
 }
 
+fn load_trending_images_concurrent(
+    live_movies: Vec<models::UnifiedMovieSummary>,
+    cache: Arc<ImageCacheService>,
+    window_weak: slint::Weak<AppWindow>,
+) {
+    tokio::spawn(async move {
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(6));
+        for (idx, m) in live_movies.into_iter().enumerate() {
+            if m.poster_url.is_empty() {
+                continue;
+            }
+            let c = cache.clone();
+            let win_weak_row = window_weak.clone();
+            let url = m.poster_url;
+            let sem = semaphore.clone();
+            tokio::spawn(async move {
+                let _permit = sem.acquire().await;
+                if let Ok(decoded) = c.fetch_and_decode(&url, 320, 480).await {
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = win_weak_row.upgrade() {
+                            let model = win.get_trending_movies();
+                            if let Some(mut item) = model.row_data(idx) {
+                                item.poster = decoded.to_slint_image();
+                                item.has_poster = true;
+                                model.set_row_data(idx, item.clone());
+                                if idx == 0 {
+                                    win.set_hero_movie(item.clone());
+                                    win.set_current_playing_movie(item);
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        }
+    });
+}
+
+fn load_discover_images_concurrent(
+    movies: Vec<models::UnifiedMovieSummary>,
+    cache: Arc<ImageCacheService>,
+    window_weak: slint::Weak<AppWindow>,
+) {
+    tokio::spawn(async move {
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(6));
+        for (idx, m) in movies.into_iter().enumerate() {
+            if m.poster_url.is_empty() {
+                continue;
+            }
+            let c = cache.clone();
+            let win_weak_row = window_weak.clone();
+            let url = m.poster_url;
+            let sem = semaphore.clone();
+            tokio::spawn(async move {
+                let _permit = sem.acquire().await;
+                if let Ok(decoded) = c.fetch_and_decode(&url, 320, 480).await {
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = win_weak_row.upgrade() {
+                            let model = win.get_discover_movies();
+                            if let Some(mut item) = model.row_data(idx) {
+                                item.poster = decoded.to_slint_image();
+                                item.has_poster = true;
+                                model.set_row_data(idx, item);
+                            }
+                        }
+                    });
+                }
+            });
+        }
+    });
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
@@ -330,35 +402,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     });
 
-                    // Step 2: Background image loading with non-blocking row-by-row updates
-                    let c_fetch = cache.clone();
-                    let win_weak_fetch = window_weak.clone();
-                    let live_movies_bg = live_movies.clone();
-                    tokio::spawn(async move {
-                        for (idx, m) in live_movies_bg.iter().enumerate() {
-                            if m.poster_url.is_empty() { continue; }
-                            
-                            if let Ok(jpg_path) = c_fetch.fetch_and_optimize(&m.poster_url, 320, 480).await {
-                                let win_weak_row = win_weak_fetch.clone();
-                                let _ = slint::invoke_from_event_loop(move || {
-                                    if let Some(win) = win_weak_row.upgrade() {
-                                        let model = win.get_trending_movies();
-                                        if let Some(mut item) = model.row_data(idx) {
-                                            if let Some(img) = models::load_slint_image_from_path(&jpg_path, 320, 480) {
-                                                item.poster = img;
-                                                item.has_poster = true;
-                                                model.set_row_data(idx, item.clone());
-                                                if idx == 0 {
-                                                    win.set_hero_movie(item.clone());
-                                                    win.set_current_playing_movie(item);
-                                                }
-                                            }
-                                        }
-                                    }
-                                });
-                            }
-                        }
-                    });
+                    // Step 2: Background parallel image loading with non-blocking row-by-row updates
+                    load_trending_images_concurrent(live_movies, cache.clone(), window_weak.clone());
                 }
                 Ok(_) => tracing::info!("API returned empty movies list."),
                 Err(e) => tracing::warn!("Live API fetch error (using fallback data): {}", e),
@@ -414,17 +459,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     });
 
-                    // Asynchronously fetch & optimize poster in background
+                    // Asynchronously fetch & decode poster in background with zero UI freeze
                     if !detail.summary.poster_url.is_empty() {
                         let url = detail.summary.poster_url.clone();
                         let c_fetch = c.clone();
                         let win_weak_detail = win_weak.clone();
                         let summary_clone = detail.summary.clone();
                         tokio::spawn(async move {
-                            if let Ok(path) = c_fetch.fetch_and_optimize(&url, 360, 540).await {
+                            if let Ok(decoded) = c_fetch.fetch_and_decode(&url, 360, 540).await {
                                 let _ = slint::invoke_from_event_loop(move || {
                                     if let Some(win) = win_weak_detail.upgrade() {
-                                        let updated = models::to_slint_movie_item_with_poster(&summary_clone, Some(&path));
+                                        let updated = models::to_slint_movie_item_with_decoded_poster(&summary_clone, Some(&decoded));
                                         win.set_detail_movie(updated);
                                     }
                                 });
@@ -440,6 +485,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
+        let cache = image_cache.clone();
         main_window.on_search_query(move |query| {
             let q = query.to_string();
             tracing::info!("Search query: {}", q);
@@ -447,14 +493,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let win_weak = window_weak.clone();
             let agg_clone = agg.clone();
+            let c_fetch = cache.clone();
             tokio::spawn(async move {
                 if let Ok(results) = agg_clone.search_movies(&q, 1).await {
+                    let win_weak_ui = win_weak.clone();
+                    let items_clone = results.items.clone();
                     let _ = slint::invoke_from_event_loop(move || {
-                        if let Some(win) = win_weak.upgrade() {
-                            let slint_results: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
+                        if let Some(win) = win_weak_ui.upgrade() {
+                            let slint_results: Vec<MovieItem> = items_clone.iter().map(to_slint_movie_item).collect();
                             win.set_discover_movies(ModelRc::new(VecModel::from(slint_results)));
                         }
                     });
+                    load_discover_images_concurrent(results.items, c_fetch, win_weak);
                 }
             });
         });
@@ -464,6 +514,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
+        let cache = image_cache.clone();
         main_window.on_change_provider(move |provider| {
             let prov = provider.to_string();
             tracing::info!("Switched API provider to: {}", prov);
@@ -473,12 +524,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let agg_clone = agg.clone();
             let win_weak = window_weak.clone();
+            let c_fetch = cache.clone();
             tokio::spawn(async move {
                 agg_clone.set_active_provider(&prov).await;
                 if let Ok(movies) = agg_clone.get_home_trending().await {
+                    let win_weak_ui = win_weak.clone();
+                    let movies_clone = movies.clone();
                     let _ = slint::invoke_from_event_loop(move || {
-                        if let Some(win) = win_weak.upgrade() {
-                            let slint_movies: Vec<MovieItem> = movies.iter().map(to_slint_movie_item).collect();
+                        if let Some(win) = win_weak_ui.upgrade() {
+                            let slint_movies: Vec<MovieItem> = movies_clone.iter().map(to_slint_movie_item).collect();
                             if let Some(feat) = slint_movies.first().cloned() {
                                 win.set_hero_movie(feat.clone());
                                 win.set_current_playing_movie(feat);
@@ -486,6 +540,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             win.set_trending_movies(ModelRc::new(VecModel::from(slint_movies)));
                         }
                     });
+                    load_trending_images_concurrent(movies, c_fetch, win_weak);
                 }
             });
         });
@@ -495,19 +550,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
+        let cache = image_cache.clone();
         main_window.on_filter_genre(move |genre_slug| {
             let slug = genre_slug.to_string();
             tracing::info!("Filter by genre: {}", slug);
             let win_weak = window_weak.clone();
             let agg_clone = agg.clone();
+            let c_fetch = cache.clone();
             tokio::spawn(async move {
                 if let Ok(results) = agg_clone.get_movies_by_genre(&slug, 1).await {
+                    let win_weak_ui = win_weak.clone();
+                    let items_clone = results.items.clone();
                     let _ = slint::invoke_from_event_loop(move || {
-                        if let Some(win) = win_weak.upgrade() {
-                            let slint_movies: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
+                        if let Some(win) = win_weak_ui.upgrade() {
+                            let slint_movies: Vec<MovieItem> = items_clone.iter().map(to_slint_movie_item).collect();
                             win.set_discover_movies(ModelRc::new(VecModel::from(slint_movies)));
                         }
                     });
+                    load_discover_images_concurrent(results.items, c_fetch, win_weak);
                 }
             });
         });
@@ -517,19 +577,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
+        let cache = image_cache.clone();
         main_window.on_filter_type(move |movie_type| {
             let t = movie_type.to_string();
             tracing::info!("Filter by movie type: {}", t);
             let win_weak = window_weak.clone();
             let agg_clone = agg.clone();
+            let c_fetch = cache.clone();
             tokio::spawn(async move {
                 if let Ok(results) = agg_clone.get_movies_by_category(&t, 1).await {
+                    let win_weak_ui = win_weak.clone();
+                    let items_clone = results.items.clone();
                     let _ = slint::invoke_from_event_loop(move || {
-                        if let Some(win) = win_weak.upgrade() {
-                            let slint_movies: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
+                        if let Some(win) = win_weak_ui.upgrade() {
+                            let slint_movies: Vec<MovieItem> = items_clone.iter().map(to_slint_movie_item).collect();
                             win.set_discover_movies(ModelRc::new(VecModel::from(slint_movies)));
                         }
                     });
+                    load_discover_images_concurrent(results.items, c_fetch, win_weak);
                 }
             });
         });

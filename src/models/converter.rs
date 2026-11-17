@@ -1,6 +1,57 @@
+use std::sync::Arc;
 use slint::SharedString;
 use crate::{MovieItem, PersonItem, EpisodeItem, GenreFilterItem};
 use super::movie::{UnifiedCategoryItem, UnifiedEpisode, UnifiedMovieSummary, UnifiedPerson};
+
+#[derive(Clone, Debug)]
+pub struct DecodedImageBuffer {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Arc<Vec<u8>>,
+}
+
+impl DecodedImageBuffer {
+    pub fn new(width: u32, height: u32, rgba: Vec<u8>) -> Self {
+        Self {
+            width,
+            height,
+            rgba: Arc::new(rgba),
+        }
+    }
+
+    pub fn to_slint_image(&self) -> slint::Image {
+        let mut buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::new(self.width, self.height);
+        let slice = buffer.make_mut_slice();
+        let raw = &self.rgba;
+        for (i, pixel) in slice.iter_mut().enumerate() {
+            let idx = i * 4;
+            if idx + 3 < raw.len() {
+                pixel.r = raw[idx];
+                pixel.g = raw[idx + 1];
+                pixel.b = raw[idx + 2];
+                pixel.a = raw[idx + 3];
+            }
+        }
+        slint::Image::from_rgba8(buffer)
+    }
+
+    pub fn decode_from_path(path: &std::path::Path, max_w: u32, max_h: u32) -> Option<Self> {
+        if !path.exists() {
+            return None;
+        }
+        if let Ok(dyn_img) = image::open(path) {
+            let resized = if dyn_img.width() > max_w || dyn_img.height() > max_h {
+                dyn_img.thumbnail(max_w, max_h)
+            } else {
+                dyn_img
+            };
+            let rgba = resized.to_rgba8();
+            let (w, h) = (rgba.width(), rgba.height());
+            return Some(Self::new(w, h, rgba.into_raw()));
+        }
+        None
+    }
+}
 
 pub fn to_slint_movie_item(u: &UnifiedMovieSummary) -> MovieItem {
     MovieItem {
@@ -20,6 +71,15 @@ pub fn to_slint_movie_item(u: &UnifiedMovieSummary) -> MovieItem {
         progress: u.progress,
         is_saved: u.is_saved,
     }
+}
+
+pub fn to_slint_movie_item_with_decoded_poster(u: &UnifiedMovieSummary, decoded: Option<&DecodedImageBuffer>) -> MovieItem {
+    let mut item = to_slint_movie_item(u);
+    if let Some(buf) = decoded {
+        item.poster = buf.to_slint_image();
+        item.has_poster = true;
+    }
+    item
 }
 
 pub fn load_slint_image_from_path(path: &std::path::Path, max_w: u32, max_h: u32) -> Option<slint::Image> {

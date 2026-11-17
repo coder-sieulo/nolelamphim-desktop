@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Nô Lệ Làm Phim
+GenericName=Movie Discovery
+Comment=A modern cross-platform desktop movie discovery application
+Exec=nolelamphim-desktop
+Icon=nolelamphim-desktop
+Terminal=false
+Type=Application
+Categories=AudioVideo;Video;Player;
+Keywords=movie;cinema;phim;streaming;slint;rust;
+StartupNotify=true
+StartupWMClass=nolelamphim-desktop
