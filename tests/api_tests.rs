@@ -239,5 +239,17 @@ fn test_duration_parser() {
     assert_eq!(parse_duration_seconds(""), 7200);
     assert_eq!(parse_duration_seconds("unknown"), 7200);
 }
-
+#[tokio::test]
+#[ignore]
+async fn test_live_search() {
+    use nolelamphim_desktop::api::traits::MovieProvider;
+    use nolelamphim_desktop::api::phimapi::PhimApiEngine;
+    let engine = PhimApiEngine::new("https://phimapi.com".to_string(), 10);
+    let res = engine.search_movies("batman", 1).await;
+    println!("Search result: {:?}", res);
+    assert!(res.is_ok(), "Search failed: {:?}", res.err());
+    let r = res.unwrap();
+    println!("Found {} movies", r.items.len());
+    assert!(!r.items.is_empty(), "Items should not be empty");
+}
 

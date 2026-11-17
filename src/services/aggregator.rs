@@ -109,11 +109,41 @@ impl MovieAggregatorService {
         engine.get_movies_by_genre(genre_slug, page).await
     }
 
-    /// Search movies
+    /// Search movies with automatic fallback across providers
     pub async fn search_movies(&self, query: &str, page: u32) -> Result<UnifiedMovieListResponse, String> {
         let active_id = self.get_active_provider_id().await;
         let engine = self.get_engine(&active_id);
-        engine.search_movies(query, page).await
+        match engine.search_movies(query, page).await {
+            Ok(res) if !res.items.is_empty() => Ok(res),
+            res => {
+                tracing::info!("Provider '{}' search returned empty or error. Trying fallback providers...", active_id);
+                if active_id != "phimapi" {
+                    if let Ok(fallback_res) = self.phimapi.search_movies(query, page).await {
+                        if !fallback_res.items.is_empty() {
+                            tracing::info!("Search fallback to PhimAPI succeeded with {} results", fallback_res.items.len());
+                            return Ok(fallback_res);
+                        }
+                    }
+                }
+                if active_id != "supabase" {
+                    if let Ok(fallback_res) = self.supabase.search_movies(query, page).await {
+                        if !fallback_res.items.is_empty() {
+                            tracing::info!("Search fallback to Supabase succeeded with {} results", fallback_res.items.len());
+                            return Ok(fallback_res);
+                        }
+                    }
+                }
+                if active_id != "nguonc" {
+                    if let Ok(fallback_res) = self.nguonc.search_movies(query, page).await {
+                        if !fallback_res.items.is_empty() {
+                            tracing::info!("Search fallback to NguonC succeeded with {} results", fallback_res.items.len());
+                            return Ok(fallback_res);
+                        }
+                    }
+                }
+                res
+            }
+        }
     }
 
     /// Get complete movie details

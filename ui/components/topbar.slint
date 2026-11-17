@@ -24,52 +24,86 @@ export component Topbar inherits Rectangle {
             border-width: 1px;
             border-color: search-input.has-focus ? Theme.primary.with-alpha(0.6) : (root.is-loading ? Theme.primary-light.with-alpha(0.4) : Theme.border);
 
+            // Click anywhere on the search box background to focus
+            box-touch := TouchArea {
+                clicked => {
+                    search-input.focus();
+                }
+            }
+
             HorizontalLayout {
-                padding-left: 16px;
-                padding-right: 14px;
+                padding-left: 14px;
+                padding-right: 12px;
                 spacing: 10px;
                 alignment: center;
 
-                if !root.is-loading : Text {
-                    text: "🔍";
-                    font-size: 13px;
-                    vertical-alignment: center;
-                }
-                if root.is-loading : Text {
-                    text: "⏳";
-                    font-size: 13px;
-                    vertical-alignment: center;
+                // Search Icon Button
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 14px;
+                    background: icon-touch.has-hover ? #ffffff1e : #00000000;
+
+                    Text {
+                        text: root.is-loading ? "⏳" : "🔍";
+                        font-size: 14px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    icon-touch := TouchArea {
+                        clicked => {
+                            if root.search-text != "" {
+                                root.search-submitted(root.search-text);
+                            } else {
+                                search-input.focus();
+                            }
+                        }
+                    }
                 }
 
-                search-input := TextInput {
-                    text: root.search-text;
-                    color: Theme.text-primary;
-                    font-size: 13px;
-                    vertical-alignment: center;
+                // Overlapping Input and Placeholder
+                input-container := Rectangle {
                     horizontal-stretch: 1;
+                    height: 100%;
+                    clip: true;
 
-                    edited => {
-                        root.search-text = self.text;
-                        root.search-changed(self.text);
+                    if root.search-text == "" : Text {
+                        x: 0;
+                        y: 0;
+                        width: 100%;
+                        height: 100%;
+                        text: "Tìm kiếm phim, diễn viên, thể loại...";
+                        color: Theme.text-muted;
+                        font-size: 13px;
+                        vertical-alignment: center;
                     }
 
-                    accepted => {
-                        root.search-submitted(self.text);
-                    }
-                }
+                    search-input := TextInput {
+                        x: 0;
+                        y: 0;
+                        width: 100%;
+                        height: 100%;
+                        text <=> root.search-text;
+                        color: Theme.text-primary;
+                        font-size: 13px;
+                        vertical-alignment: center;
 
-                if root.search-text == "" : Text {
-                    text: "Tìm kiếm phim, diễn viên, thể loại...";
-                    color: Theme.text-muted;
-                    font-size: 12px;
-                    vertical-alignment: center;
+                        edited => {
+                            root.search-changed(self.text);
+                        }
+
+                        accepted => {
+                            root.search-submitted(self.text);
+                        }
+                    }
                 }
 
                 // Clear button when search query is entered
                 if root.search-text != "" : Rectangle {
-                    width: 20px;
-                    height: 20px;
-                    border-radius: 10px;
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 11px;
                     background: clear-touch.has-hover ? #ffffff2e : #ffffff14;
 
                     Text {
@@ -88,47 +122,35 @@ export component Topbar inherits Rectangle {
                     }
                 }
 
-                // Status Badge: Loading or ENTER hint
-                if root.is-loading : Rectangle {
-                    height: 22px;
-                    border-radius: 11px;
-                    background: Theme.primary.with-alpha(0.2);
+                // Clickable Search Submit Badge
+                Rectangle {
+                    height: 26px;
+                    border-radius: 13px;
+                    background: enter-touch.has-hover ? Theme.primary.with-alpha(0.35) : (root.is-loading ? Theme.primary.with-alpha(0.2) : (root.search-text != "" ? Theme.primary.with-alpha(0.18) : #ffffff0e));
                     border-width: 1px;
-                    border-color: Theme.primary.with-alpha(0.4);
+                    border-color: root.search-text != "" ? Theme.primary.with-alpha(0.5) : #ffffff18;
 
                     HorizontalLayout {
-                        padding-left: 8px;
-                        padding-right: 8px;
+                        padding-left: 10px;
+                        padding-right: 10px;
                         alignment: center;
 
                         Text {
-                            text: "Đang tìm...";
-                            color: Theme.primary-light;
+                            text: root.is-loading ? "Đang tìm..." : "Tìm kiếm ↵";
+                            color: root.search-text != "" ? Theme.primary-light : Theme.text-muted;
                             font-size: 10px;
                             font-weight: 700;
                             vertical-alignment: center;
                         }
                     }
-                }
 
-                if !root.is-loading : Rectangle {
-                    height: 22px;
-                    border-radius: 5px;
-                    background: #ffffff0e;
-                    border-width: 1px;
-                    border-color: #ffffff18;
-
-                    HorizontalLayout {
-                        padding-left: 6px;
-                        padding-right: 6px;
-                        alignment: center;
-
-                        Text {
-                            text: "ENTER ↵";
-                            color: Theme.text-muted;
-                            font-size: 9px;
-                            font-weight: 700;
-                            vertical-alignment: center;
+                    enter-touch := TouchArea {
+                        clicked => {
+                            if root.search-text != "" {
+                                root.search-submitted(root.search-text);
+                            } else {
+                                search-input.focus();
+                            }
                         }
                     }
                 }
