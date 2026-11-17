@@ -221,3 +221,23 @@ fn test_decoded_image_buffer_creation() {
     assert_eq!(size.height, 1);
 }
 
+#[test]
+fn test_cinema_duration_formatter() {
+    use nolelamphim_desktop::models::format_cinema_duration;
+    let formatted = format_cinema_duration(2110, 8040);
+    assert_eq!(formatted, "00:35:10 / 02:14:00");
+
+    let zero = format_cinema_duration(0, 7200);
+    assert_eq!(zero, "00:00:00 / 02:00:00");
+}
+
+#[test]
+fn test_duration_parser() {
+    use nolelamphim_desktop::models::parse_duration_seconds;
+    assert_eq!(parse_duration_seconds("166 phút"), 166 * 60);
+    assert_eq!(parse_duration_seconds("45 min"), 45 * 60);
+    assert_eq!(parse_duration_seconds(""), 7200);
+    assert_eq!(parse_duration_seconds("unknown"), 7200);
+}
+
+

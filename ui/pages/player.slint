@@ -1,0 +1,654 @@
+import { Theme } from "../themes/theme.slint";
+import { MovieItem, EpisodeItem } from "../models.slint";
+
+export component PlayerPage inherits Flickable {
+    in property <MovieItem> movie;
+    in property <EpisodeItem> current-episode;
+    in property <[EpisodeItem]> episodes;
+    in-out property <bool> is-playing: false;
+    in-out property <int> progress-seconds: 1450;
+    in-out property <int> duration-seconds: 6600;
+    in-out property <string> time-display: "00:24:10 / 01:50:00";
+    in-out property <int> progress-percent: 22;
+    in-out property <string> playback-speed: "1.0x";
+    in-out property <int> volume-level: 85;
+    in-out property <string> active-server: "Server VIP #1";
+
+    callback back-clicked();
+    callback toggle-play();
+    callback skip-10(bool); // true = +10s forward, false = -10s backward
+    callback seek-percent(int);
+    callback cycle-speed();
+    callback select-episode(EpisodeItem);
+    callback switch-server(string);
+    callback open-fullscreen();
+    callback toggle-save(string);
+    callback next-episode();
+
+    viewport-width: self.width;
+
+    VerticalLayout {
+        padding-top: 10px;
+        padding-bottom: 50px;
+        spacing: 20px;
+
+        // Top Navigation Bar
+        HorizontalLayout {
+            alignment: space-between;
+
+            HorizontalLayout {
+                spacing: 12px;
+                alignment: start;
+
+                // Back Button
+                Rectangle {
+                    height: 36px;
+                    border-radius: 18px;
+                    background: back-touch.has-hover ? #ffffff1e : #ffffff0e;
+                    border-width: 1px;
+                    border-color: Theme.border;
+
+                    HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 16px;
+                        spacing: 8px;
+                        alignment: center;
+
+                        Text { text: "←"; font-size: 14px; color: Theme.text-primary; vertical-alignment: center; }
+                        Text { text: "Quay lại danh sách"; font-size: 12px; font-weight: 600; color: Theme.text-primary; vertical-alignment: center; }
+                    }
+
+                    back-touch := TouchArea {
+                        clicked => { root.back-clicked(); }
+                    }
+                }
+
+                // Currently Playing Title Tag
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 2px;
+
+                    Text {
+                        text: root.movie.title != "" ? root.movie.title : "Đang phát phim";
+                        color: Theme.text-primary;
+                        font-size: 16px;
+                        font-weight: 700;
+                    }
+
+                    Text {
+                        text: (root.current-episode.name != "" ? root.current-episode.name : "Tập 01 (Full)") + "  •  " + root.active-server;
+                        color: Theme.primary-light;
+                        font-size: 11px;
+                        font-weight: 600;
+                    }
+                }
+            }
+
+            // Top Right Badges & Fullscreen
+            HorizontalLayout {
+                spacing: 10px;
+                alignment: end;
+
+                // Watchlist Save Button
+                Rectangle {
+                    height: 36px;
+                    border-radius: 18px;
+                    background: save-touch.has-hover ? #ffffff1e : #ffffff0e;
+                    border-width: 1px;
+                    border-color: root.movie.is_saved ? Theme.primary : Theme.border;
+
+                    HorizontalLayout {
+                        padding-left: 14px;
+                        padding-right: 14px;
+                        spacing: 6px;
+                        alignment: center;
+
+                        Text {
+                            text: root.movie.is_saved ? "♥" : "♡";
+                            color: root.movie.is_saved ? Theme.primary : Theme.text-secondary;
+                            font-size: 14px;
+                            vertical-alignment: center;
+                        }
+
+                        Text {
+                            text: root.movie.is_saved ? "Đã lưu" : "Lưu phim";
+                            color: Theme.text-primary;
+                            font-size: 11px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    save-touch := TouchArea {
+                        clicked => { root.toggle-save(root.movie.slug); }
+                    }
+                }
+
+                // Fullscreen / Cinema Mode Button
+                Rectangle {
+                    height: 36px;
+                    border-radius: 18px;
+                    background: @linear-gradient(110deg, Theme.primary-light 0%, Theme.primary 100%);
+
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        spacing: 6px;
+                        alignment: center;
+
+                        Text { text: "⛶"; font-size: 13px; color: Theme.text-dark; font-weight: 800; vertical-alignment: center; }
+                        Text { text: "Mở Rạp Toàn Màn Hình"; font-size: 11px; font-weight: 700; color: Theme.text-dark; vertical-alignment: center; }
+                    }
+
+                    TouchArea {
+                        clicked => { root.open-fullscreen(); }
+                    }
+                }
+            }
+        }
+
+        // Main Cinema Screen Viewport (16:9 Cinematic Player)
+        Rectangle {
+            height: 480px;
+            border-radius: Theme.radius-lg;
+            background: #000000;
+            border-width: 1px;
+            border-color: Theme.border-accent;
+            clip: true;
+
+            // Movie Poster / Backdrop Backdrop
+            Image {
+                width: 100%;
+                height: 100%;
+                source: @image-url("../../assets/images/hero_placeholder.png");
+                image-fit: cover;
+                opacity: 0.65;
+            }
+
+            if root.movie.has-poster : Image {
+                width: 100%;
+                height: 100%;
+                source: root.movie.poster;
+                image-fit: cover;
+                opacity: 0.45;
+            }
+
+            // Cinema Vignette Dark Gradient Overlay
+            Rectangle {
+                width: 100%;
+                height: 100%;
+                background: @linear-gradient(180deg, #000000aa 0%, #00000044 40%, #000000dd 100%);
+            }
+
+            // Top HUD Bar inside Player
+            VerticalLayout {
+                y: 16px;
+                x: 20px;
+                width: parent.width - 40px;
+
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    // Stream Quality & Audio Badge
+                    HorizontalLayout {
+                        spacing: 8px;
+
+                        Rectangle {
+                            height: 24px;
+                            border-radius: 4px;
+                            background: Theme.primary;
+                            HorizontalLayout {
+                                padding-left: 8px; padding-right: 8px;
+                                Text { text: "4K ULTRA HD"; color: Theme.text-dark; font-size: 10px; font-weight: 800; vertical-alignment: center; }
+                            }
+                        }
+
+                        Rectangle {
+                            height: 24px;
+                            border-radius: 4px;
+                            background: #ffffff1f;
+                            HorizontalLayout {
+                                padding-left: 8px; padding-right: 8px;
+                                Text { text: "DOLBY 5.1"; color: #fff; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+                            }
+                        }
+
+                        Rectangle {
+                            height: 24px;
+                            border-radius: 4px;
+                            background: #ffffff14;
+                            HorizontalLayout {
+                                padding-left: 8px; padding-right: 8px;
+                                Text { text: root.is-playing ? "🟢 Đang phát" : "⏸ Đang tạm dừng"; color: root.is-playing ? #4ade80 : #f87171; font-size: 10px; font-weight: 600; vertical-alignment: center; }
+                            }
+                        }
+                    }
+
+                    // Server & Episode Info
+                    Rectangle {
+                        height: 24px;
+                        border-radius: 4px;
+                        background: #00000088;
+                        border-width: 1px;
+                        border-color: #ffffff1f;
+                        HorizontalLayout {
+                            padding-left: 10px; padding-right: 10px;
+                            Text {
+                                text: root.active-server + " • " + (root.current-episode.name != "" ? root.current-episode.name : "Tập 01");
+                                color: #ffbe85;
+                                font-size: 11px;
+                                font-weight: 600;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Big Center Play / Pause Indicator
+            center-btn := Rectangle {
+                x: (parent.width - 76px) / 2;
+                y: (parent.height - 76px) / 2 - 15px;
+                width: 76px;
+                height: 76px;
+                border-radius: 38px;
+                background: center-touch.has-hover ? @linear-gradient(135deg, Theme.primary 0%, Theme.primary-hover 100%) : #00000088;
+                border-width: 2px;
+                border-color: Theme.primary;
+
+                Text {
+                    text: root.is-playing ? "⏸" : "▶";
+                    color: center-touch.has-hover ? Theme.text-dark : Theme.primary-light;
+                    font-size: 28px;
+                    font-weight: 800;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                center-touch := TouchArea {
+                    clicked => {
+                        root.is-playing = !root.is-playing;
+                        root.toggle-play();
+                    }
+                }
+            }
+
+            // Bottom HUD: Interactive Timeline & Cinema Player Controls
+            VerticalLayout {
+                y: parent.height - 110px;
+                x: 20px;
+                width: parent.width - 40px;
+                spacing: 12px;
+
+                // Scrub Track / Progress Timeline
+                VerticalLayout {
+                    spacing: 6px;
+
+                    // Time Stamps Row
+                    HorizontalLayout {
+                        alignment: space-between;
+
+                        Text {
+                            text: root.time-display;
+                            color: #e5e7eb;
+                            font-size: 11px;
+                            font-weight: 600;
+                        }
+
+                        Text {
+                            text: root.progress-percent + "% hoàn thành";
+                            color: Theme.primary-light;
+                            font-size: 11px;
+                            font-weight: 600;
+                        }
+                    }
+
+                    // Progress Bar Container
+                    track-box := Rectangle {
+                        height: 6px;
+                        border-radius: 3px;
+                        background: #ffffff2e;
+
+                        // Filled Track
+                        Rectangle {
+                            x: 0;
+                            width: parent.width * (root.progress-percent / 100.0);
+                            height: 100%;
+                            background: Theme.primary;
+                            border-radius: 3px;
+                        }
+
+                        // Scrubber handle
+                        Rectangle {
+                            x: Math.max(0px, parent.width * (root.progress-percent / 100.0) - 6px);
+                            y: -4px;
+                            width: 14px;
+                            height: 14px;
+                            border-radius: 7px;
+                            background: #ffffff;
+                            border-width: 2px;
+                            border-color: Theme.primary;
+                        }
+
+                        TouchArea {
+                            clicked => {
+                                // Jump progress when clicking along the bar
+                                root.progress-percent = Math.max(5, Math.min(95, root.progress-percent + 15));
+                                if (root.progress-percent > 90) {
+                                    root.progress-percent = 10;
+                                }
+                                root.seek-percent(root.progress-percent);
+                            }
+                        }
+                    }
+                }
+
+                // Control Buttons Row
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    // Left Transport Controls (Rewind 10s, Play/Pause, Fast Forward 10s, Next Ep)
+                    HorizontalLayout {
+                        spacing: 16px;
+                        alignment: start;
+
+                        // Skip -10s
+                        Rectangle {
+                            width: 38px;
+                            height: 38px;
+                            border-radius: 19px;
+                            background: rw-touch.has-hover ? #ffffff1f : #00000055;
+                            border-width: 1px;
+                            border-color: #ffffff1f;
+
+                            Text {
+                                text: "⏪";
+                                font-size: 14px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            rw-touch := TouchArea {
+                                clicked => {
+                                    root.progress-percent = Math.max(0, root.progress-percent - 5);
+                                    root.skip-10(false);
+                                }
+                            }
+                        }
+
+                        // Play / Pause Round Button
+                        Rectangle {
+                            width: 44px;
+                            height: 44px;
+                            border-radius: 22px;
+                            background: Theme.primary;
+
+                            Text {
+                                text: root.is-playing ? "⏸" : "▶";
+                                color: Theme.text-dark;
+                                font-size: 16px;
+                                font-weight: 800;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            TouchArea {
+                                clicked => {
+                                    root.is-playing = !root.is-playing;
+                                    root.toggle-play();
+                                }
+                            }
+                        }
+
+                        // Skip +10s
+                        Rectangle {
+                            width: 38px;
+                            height: 38px;
+                            border-radius: 19px;
+                            background: ff-touch.has-hover ? #ffffff1f : #00000055;
+                            border-width: 1px;
+                            border-color: #ffffff1f;
+
+                            Text {
+                                text: "⏩";
+                                font-size: 14px;
+                                horizontal-alignment: center;
+                                vertical-alignment: center;
+                            }
+
+                            ff-touch := TouchArea {
+                                clicked => {
+                                    root.progress-percent = Math.min(100, root.progress-percent + 5);
+                                    root.skip-10(true);
+                                }
+                            }
+                        }
+
+                        // Next Episode Button
+                        Rectangle {
+                            height: 38px;
+                            border-radius: 19px;
+                            background: nextep-touch.has-hover ? #ffffff1f : #00000055;
+                            border-width: 1px;
+                            border-color: #ffffff1f;
+
+                            HorizontalLayout {
+                                padding-left: 14px;
+                                padding-right: 14px;
+                                spacing: 6px;
+                                alignment: center;
+
+                                Text { text: "Tập tiếp theo"; font-size: 11px; font-weight: 600; color: Theme.text-primary; vertical-alignment: center; }
+                                Text { text: "⏭"; font-size: 11px; color: Theme.text-secondary; vertical-alignment: center; }
+                            }
+
+                            nextep-touch := TouchArea {
+                                clicked => { root.next-episode(); }
+                            }
+                        }
+                    }
+
+                    // Right Media Options (Speed, Volume, Fullscreen)
+                    HorizontalLayout {
+                        spacing: 14px;
+                        alignment: end;
+
+                        // Playback Speed Button
+                        Rectangle {
+                            height: 34px;
+                            border-radius: 17px;
+                            background: spd-touch.has-hover ? #ffffff1f : #00000055;
+                            border-width: 1px;
+                            border-color: #ffffff1f;
+
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 12px;
+                                alignment: center;
+
+                                Text {
+                                    text: "⚡ " + root.playback-speed;
+                                    color: Theme.primary-light;
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            spd-touch := TouchArea {
+                                clicked => {
+                                    if (root.playback-speed == "1.0x") {
+                                        root.playback-speed = "1.25x";
+                                    } else if (root.playback-speed == "1.25x") {
+                                        root.playback-speed = "1.5x";
+                                    } else if (root.playback-speed == "1.5x") {
+                                        root.playback-speed = "2.0x";
+                                    } else {
+                                        root.playback-speed = "1.0x";
+                                    }
+                                    root.cycle-speed();
+                                }
+                            }
+                        }
+
+                        // Volume Control Pill
+                        Rectangle {
+                            height: 34px;
+                            border-radius: 17px;
+                            background: vol-touch.has-hover ? #ffffff1f : #00000055;
+                            border-width: 1px;
+                            border-color: #ffffff1f;
+
+                            HorizontalLayout {
+                                padding-left: 12px;
+                                padding-right: 12px;
+                                spacing: 6px;
+                                alignment: center;
+
+                                Text { text: "🔊"; font-size: 12px; vertical-alignment: center; }
+                                Text { text: root.volume-level + "%"; color: Theme.text-primary; font-size: 11px; font-weight: 600; vertical-alignment: center; }
+                            }
+
+                            vol-touch := TouchArea {
+                                clicked => {
+                                    root.volume-level = (root.volume-level >= 100) ? 0 : (root.volume-level + 20);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Server Switcher Section
+        VerticalLayout {
+            spacing: 10px;
+
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+
+                Text { text: "🌐"; font-size: 14px; vertical-alignment: center; }
+                Text { text: "Chọn Máy Chủ Phát Trực Tiếp:"; color: Theme.text-primary; font-size: 14px; font-weight: 700; vertical-alignment: center; }
+            }
+
+            HorizontalLayout {
+                spacing: 10px;
+
+                Rectangle {
+                    height: 36px;
+                    border-radius: 18px;
+                    background: root.active-server == "Server VIP #1" ? Theme.primary.with-alpha(0.28) : #ffffff0c;
+                    border-width: 1px;
+                    border-color: root.active-server == "Server VIP #1" ? Theme.primary : Theme.border;
+
+                    HorizontalLayout {
+                        padding-left: 16px; padding-right: 16px;
+                        Text { text: "⚡ Server VIP #1 (Tốc độ cao 4K)"; font-size: 12px; font-weight: 600; color: root.active-server == "Server VIP #1" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                    }
+                    TouchArea { clicked => { root.active-server = "Server VIP #1"; root.switch-server("Server VIP #1"); } }
+                }
+
+                Rectangle {
+                    height: 36px;
+                    border-radius: 18px;
+                    background: root.active-server == "Server VIP #2" ? Theme.primary.with-alpha(0.28) : #ffffff0c;
+                    border-width: 1px;
+                    border-color: root.active-server == "Server VIP #2" ? Theme.primary : Theme.border;
+
+                    HorizontalLayout {
+                        padding-left: 16px; padding-right: 16px;
+                        Text { text: "⚡ Server VIP #2 (HLS Backup)"; font-size: 12px; font-weight: 600; color: root.active-server == "Server VIP #2" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                    }
+                    TouchArea { clicked => { root.active-server = "Server VIP #2"; root.switch-server("Server VIP #2"); } }
+                }
+
+                Rectangle {
+                    height: 36px;
+                    border-radius: 18px;
+                    background: root.active-server == "Server Dự Phòng" ? Theme.primary.with-alpha(0.28) : #ffffff0c;
+                    border-width: 1px;
+                    border-color: root.active-server == "Server Dự Phòng" ? Theme.primary : Theme.border;
+
+                    HorizontalLayout {
+                        padding-left: 16px; padding-right: 16px;
+                        Text { text: "🛡️ Server Dự Phòng (CDN Quốc Tế)"; font-size: 12px; font-weight: 600; color: root.active-server == "Server Dự Phòng" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                    }
+                    TouchArea { clicked => { root.active-server = "Server Dự Phòng"; root.switch-server("Server Dự Phòng"); } }
+                }
+            }
+        }
+
+        // Episode Drawer / Grid
+        VerticalLayout {
+            spacing: 12px;
+
+            HorizontalLayout {
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text { text: "📑"; font-size: 14px; vertical-alignment: center; }
+                    Text {
+                        text: "Danh Sách Tập Phim (" + root.episodes.length + " tập)";
+                        color: Theme.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Text {
+                    text: "Đang phát: " + (root.current-episode.name != "" ? root.current-episode.name : "Tập 01");
+                    color: Theme.primary-light;
+                    font-size: 12px;
+                    font-weight: 600;
+                    vertical-alignment: center;
+                }
+            }
+
+            // Episode buttons grid
+            HorizontalLayout {
+                spacing: 10px;
+
+                for ep in root.episodes : Rectangle {
+                    height: 38px;
+                    border-radius: 8px;
+                    background: (ep.slug == root.current-episode.slug) ? 
+                        @linear-gradient(110deg, Theme.primary.with-alpha(0.35) 0%, Theme.primary.with-alpha(0.15) 100%) : 
+                        item-touch.has-hover ? #ffffff18 : #ffffff0b;
+                    border-width: 1px;
+                    border-color: (ep.slug == root.current-episode.slug) ? Theme.primary : #ffffff14;
+
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        spacing: 6px;
+                        alignment: center;
+
+                        if ep.slug == root.current-episode.slug : Text {
+                            text: "▶";
+                            font-size: 10px;
+                            color: Theme.primary;
+                            vertical-alignment: center;
+                        }
+
+                        Text {
+                            text: ep.name;
+                            color: (ep.slug == root.current-episode.slug) ? Theme.primary-light : Theme.text-primary;
+                            font-size: 12px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    item-touch := TouchArea {
+                        clicked => {
+                            root.select-episode(ep);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

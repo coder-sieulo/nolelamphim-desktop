@@ -8,7 +8,7 @@ use std::sync::Arc;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
 use config::AppConfig;
-use models::{to_slint_episode_item, to_slint_movie_item, to_slint_person_item};
+use models::{format_cinema_duration, parse_duration_seconds, to_slint_episode_item, to_slint_movie_item, to_slint_person_item};
 use services::{ImageCacheService, MovieAggregatorService, StorageService};
 
 slint::include_modules!();
@@ -193,28 +193,51 @@ fn trigger_play_movie(
                 win.set_current_playing_movie(movie);
             }
             win.set_is_playing(true);
+            win.set_active_page(SharedString::from("Player"));
         }
     });
 
     tokio::spawn(async move {
         if let Ok(detail) = agg.get_movie_detail(&slug_str).await {
-            if let Some(ep) = detail.episodes.first() {
+            let episodes: Vec<EpisodeItem> = detail.episodes.iter().map(to_slint_episode_item).collect();
+            let first_ep = episodes.first().cloned();
+            let duration_secs = parse_duration_seconds(&detail.summary.time);
+            let time_display = format_cinema_duration(0, duration_secs as i64);
+
+            if let Some(ref ep) = first_ep {
                 let stream_url = if !ep.link_embed.is_empty() {
-                    &ep.link_embed
+                    ep.link_embed.to_string()
                 } else {
-                    &ep.link_m3u8
+                    ep.link_m3u8.to_string()
                 };
                 if !stream_url.is_empty() {
-                    open_target_url(stream_url);
+                    open_target_url(&stream_url);
                 }
             }
-            let updated_hist = stor.add_to_history(detail.summary, 25).await;
+            let updated_hist = stor.add_to_history(detail.summary.clone(), 25).await;
             let win_weak_hist = window_weak.clone();
+            let summary_clone = detail.summary;
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(win) = win_weak_hist.upgrade() {
                     let slint_hist: Vec<MovieItem> = updated_hist.iter().map(to_slint_movie_item).collect();
                     win.set_continue_movies(ModelRc::new(VecModel::from(slint_hist.clone())));
                     win.set_library_history_movies(ModelRc::new(VecModel::from(slint_hist)));
+                    if !episodes.is_empty() {
+                        win.set_current_episodes(ModelRc::new(VecModel::from(episodes.clone())));
+                        win.set_detail_episodes(ModelRc::new(VecModel::from(episodes)));
+                    }
+                    if let Some(ep) = first_ep {
+                        win.set_current_episode(ep.clone());
+                        if !ep.server_name.is_empty() {
+                            win.set_player_server(ep.server_name);
+                        }
+                    }
+                    win.set_player_duration_seconds(duration_secs);
+                    win.set_player_progress_seconds(0);
+                    win.set_player_progress_percent(0);
+                    win.set_player_time_display(SharedString::from(time_display));
+                    let movie_item = to_slint_movie_item(&summary_clone);
+                    win.set_current_playing_movie(movie_item);
                 }
             });
         }
@@ -520,10 +543,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     main_window.set_detail_actors(ModelRc::new(VecModel::from(actors)));
 
     let episodes = vec![
-        EpisodeItem { server_name: SharedString::from("Server VIP #1"), name: SharedString::from("Tập 01 (Full)"), slug: SharedString::from("tap-01"), link_embed: SharedString::from(""), link_m3u8: SharedString::from("") },
-        EpisodeItem { server_name: SharedString::from("Server Dự Phòng #2"), name: SharedString::from("Tập 01 (Dự phòng)"), slug: SharedString::from("tap-01-bak"), link_embed: SharedString::from(""), link_m3u8: SharedString::from("") },
+        EpisodeItem { server_name: SharedString::from("Server VIP #1"), name: SharedString::from("Tập 01 (Full)"), slug: SharedString::from("tap-01"), link_embed: SharedString::from("https://www.youtube.com/embed/Way9Dexny3w"), link_m3u8: SharedString::from("") },
+        EpisodeItem { server_name: SharedString::from("Server VIP #2"), name: SharedString::from("Tập 02"), slug: SharedString::from("tap-02"), link_embed: SharedString::from("https://www.youtube.com/embed/Way9Dexny3w"), link_m3u8: SharedString::from("") },
+        EpisodeItem { server_name: SharedString::from("Server Dự Phòng #3"), name: SharedString::from("Tập 03"), slug: SharedString::from("tap-03"), link_embed: SharedString::from("https://www.youtube.com/embed/Way9Dexny3w"), link_m3u8: SharedString::from("") },
     ];
-    main_window.set_detail_episodes(ModelRc::new(VecModel::from(episodes)));
+    main_window.set_detail_episodes(ModelRc::new(VecModel::from(episodes.clone())));
+    main_window.set_current_episodes(ModelRc::new(VecModel::from(episodes.clone())));
+    if let Some(first_ep) = episodes.first() {
+        main_window.set_current_episode(first_ep.clone());
+    }
+    main_window.set_player_time_display(SharedString::from("00:35:10 / 02:14:00"));
+    main_window.set_player_progress_percent(26);
+    main_window.set_player_progress_seconds(2110);
+    main_window.set_player_duration_seconds(8040);
+    main_window.set_player_server(SharedString::from("Server VIP #1"));
 
     let keywords = vec![
         SharedString::from("Sci-Fi"),
@@ -949,6 +982,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Play Episode Callback -> Open Stream URL or Web Embed Player
     {
+        let window_weak = main_window.as_weak();
         main_window.on_play_episode(move |ep| {
             let target_url = if !ep.link_embed.is_empty() {
                 ep.link_embed.to_string()
@@ -956,7 +990,169 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ep.link_m3u8.to_string()
             };
             tracing::info!("Playing episode '{}' on server '{}': {}", ep.name, ep.server_name, target_url);
-            open_target_url(&target_url);
+
+            if let Some(win) = window_weak.upgrade() {
+                win.set_current_episode(ep.clone());
+                win.set_is_playing(true);
+                win.set_active_page(SharedString::from("Player"));
+                win.set_player_progress_seconds(0);
+                win.set_player_progress_percent(0);
+                let duration = win.get_player_duration_seconds();
+                win.set_player_time_display(SharedString::from(format_cinema_duration(0, duration as i64)));
+                if !ep.server_name.is_empty() {
+                    win.set_player_server(ep.server_name.clone());
+                }
+            }
+
+            if !target_url.is_empty() {
+                open_target_url(&target_url);
+            }
+        });
+    }
+
+    // Skip 10 Seconds Forward / Backward
+    {
+        let window_weak = main_window.as_weak();
+        main_window.on_skip_10(move |forward| {
+            if let Some(win) = window_weak.upgrade() {
+                let current_sec = win.get_player_progress_seconds();
+                let duration = win.get_player_duration_seconds().max(1);
+                let new_sec = if forward {
+                    (current_sec + 10).min(duration)
+                } else {
+                    (current_sec - 10).max(0)
+                };
+                let percent = (new_sec * 100) / duration;
+                win.set_player_progress_seconds(new_sec);
+                win.set_player_progress_percent(percent);
+                win.set_player_time_display(SharedString::from(format_cinema_duration(new_sec as i64, duration as i64)));
+                tracing::info!("Cinema player skip 10s: forward={}, new_sec={}/{}", forward, new_sec, duration);
+            }
+        });
+    }
+
+    // Seek to Percentage (0..100)
+    {
+        let window_weak = main_window.as_weak();
+        main_window.on_seek_percent(move |p| {
+            if let Some(win) = window_weak.upgrade() {
+                let clamped = p.clamp(0, 100);
+                let duration = win.get_player_duration_seconds().max(1);
+                let new_sec = (clamped as i64 * duration as i64 / 100) as i32;
+                win.set_player_progress_percent(clamped);
+                win.set_player_progress_seconds(new_sec);
+                win.set_player_time_display(SharedString::from(format_cinema_duration(new_sec as i64, duration as i64)));
+                tracing::info!("Cinema player seek to {}%: {}s/{}s", clamped, new_sec, duration);
+            }
+        });
+    }
+
+    // Cycle Playback Speed (1.0x -> 1.25x -> 1.5x -> 2.0x -> 0.75x -> 1.0x)
+    {
+        let window_weak = main_window.as_weak();
+        main_window.on_cycle_speed(move || {
+            if let Some(win) = window_weak.upgrade() {
+                let current_speed = win.get_player_speed().to_string();
+                let next_speed = match current_speed.as_str() {
+                    "1.0x" => "1.25x",
+                    "1.25x" => "1.5x",
+                    "1.5x" => "2.0x",
+                    "2.0x" => "0.75x",
+                    _ => "1.0x",
+                };
+                win.set_player_speed(SharedString::from(next_speed));
+                tracing::info!("Cinema player playback speed changed to: {}", next_speed);
+            }
+        });
+    }
+
+    // Open Stream URL in External Player / Fullscreen
+    {
+        let window_weak = main_window.as_weak();
+        main_window.on_open_fullscreen(move || {
+            if let Some(win) = window_weak.upgrade() {
+                let ep = win.get_current_episode();
+                let target_url = if !ep.link_embed.is_empty() {
+                    ep.link_embed.to_string()
+                } else if !ep.link_m3u8.is_empty() {
+                    ep.link_m3u8.to_string()
+                } else {
+                    String::new()
+                };
+                if !target_url.is_empty() {
+                    tracing::info!("Cinema player open stream fullscreen/external: {}", target_url);
+                    open_target_url(&target_url);
+                }
+            }
+        });
+    }
+
+    // Next Episode Callback
+    {
+        let window_weak = main_window.as_weak();
+        main_window.on_next_episode(move || {
+            if let Some(win) = window_weak.upgrade() {
+                let current_ep = win.get_current_episode();
+                let episodes = win.get_current_episodes();
+                let count = episodes.row_count();
+                if count > 0 {
+                    let mut current_idx = 0;
+                    for i in 0..count {
+                        if let Some(ep) = episodes.row_data(i) {
+                            if ep.slug == current_ep.slug && ep.server_name == current_ep.server_name {
+                                current_idx = i;
+                                break;
+                            }
+                        }
+                    }
+                    let next_idx = (current_idx + 1) % count;
+                    if let Some(next_ep) = episodes.row_data(next_idx) {
+                        tracing::info!("Cinema player next episode: {} ({})", next_ep.name, next_ep.server_name);
+                        win.set_current_episode(next_ep.clone());
+                        win.set_player_progress_seconds(0);
+                        win.set_player_progress_percent(0);
+                        let duration = win.get_player_duration_seconds();
+                        win.set_player_time_display(SharedString::from(format_cinema_duration(0, duration as i64)));
+                        win.set_is_playing(true);
+
+                        let target_url = if !next_ep.link_embed.is_empty() {
+                            next_ep.link_embed.to_string()
+                        } else {
+                            next_ep.link_m3u8.to_string()
+                        };
+                        if !target_url.is_empty() {
+                            open_target_url(&target_url);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Cinema Playback Progress Ticker (1-second tick when is_playing == true)
+    {
+        let window_weak = main_window.as_weak();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+            loop {
+                interval.tick().await;
+                let win_weak_tick = window_weak.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(win) = win_weak_tick.upgrade() {
+                        if win.get_is_playing() {
+                            let curr = win.get_player_progress_seconds();
+                            let dur = win.get_player_duration_seconds().max(1);
+                            if curr < dur {
+                                let new_sec = curr + 1;
+                                let pct = (new_sec * 100) / dur;
+                                win.set_player_progress_seconds(new_sec);
+                                win.set_player_progress_percent(pct);
+                                win.set_player_time_display(SharedString::from(format_cinema_duration(new_sec as i64, dur as i64)));
+                            }
+                        }
+                    }
+                });
+            }
         });
     }
 

@@ -163,3 +163,24 @@ pub fn to_slint_genre_item(g: &UnifiedCategoryItem, active: bool) -> GenreFilter
         active,
     }
 }
+
+pub fn format_cinema_duration(progress_secs: i64, duration_secs: i64) -> String {
+    let p_h = progress_secs / 3600;
+    let p_m = (progress_secs % 3600) / 60;
+    let p_s = progress_secs % 60;
+    let d_h = duration_secs / 3600;
+    let d_m = (duration_secs % 3600) / 60;
+    let d_s = duration_secs % 60;
+    format!("{:02}:{:02}:{:02} / {:02}:{:02}:{:02}", p_h, p_m, p_s, d_h, d_m, d_s)
+}
+
+pub fn parse_duration_seconds(time_str: &str) -> i32 {
+    let digits: String = time_str.chars().filter(|c| c.is_ascii_digit()).collect();
+    if let Ok(minutes) = digits.parse::<i32>() {
+        if minutes > 0 && minutes < 600 {
+            return minutes * 60;
+        }
+    }
+    7200 // default 2 hours (7200s)
+}
+

@@ -8,6 +8,8 @@ import { DiscoverPage } from "pages/discover.slint";
 import { MovieDetailPage } from "pages/movie-detail.slint";
 import { LibraryPage } from "pages/library.slint";
 
+import { PlayerPage } from "pages/player.slint";
+
 export component AppWindow inherits Window {
     title: "Nolelamphim — Cinematic Movie Discovery";
     preferred-width: 1400px;
@@ -32,7 +34,18 @@ export component AppWindow inherits Window {
     in property <[MovieItem]> library-history-movies;
     in property <[MovieItem]> right-panel-suggestions;
     in property <MovieItem> current-playing-movie;
-    in property <bool> is-playing: false;
+    in-out property <bool> is-playing: false;
+
+    // Player Cinema Mode Data
+    in property <EpisodeItem> current-episode;
+    in property <[EpisodeItem]> current-episodes;
+    in-out property <int> player-progress-seconds: 1450;
+    in-out property <int> player-duration-seconds: 6600;
+    in-out property <string> player-time-display: "00:24:10 / 01:50:00";
+    in-out property <int> player-progress-percent: 22;
+    in-out property <string> player-speed: "1.0x";
+    in-out property <int> player-volume: 85;
+    in-out property <string> player-server: "Server VIP #1";
 
     // Detail Page Data
     in property <MovieItem> detail-movie;
@@ -55,6 +68,11 @@ export component AppWindow inherits Window {
     callback change-page(int);
     callback prev-movie();
     callback next-movie();
+    callback skip-10(bool);
+    callback seek-percent(int);
+    callback cycle-speed();
+    callback open-fullscreen();
+    callback next-episode();
 
     HorizontalLayout {
         // Left Column: Navigation Sidebar (224px)
@@ -116,7 +134,10 @@ export component AppWindow inherits Window {
                 continue-movies: root.continue-movies;
                 mood-movies: root.mood-movies;
                 movie-selected(slug) => { root.select-movie(slug); }
-                play-movie(slug) => { root.play-movie(slug); }
+                play-movie(slug) => {
+                    root.play-movie(slug);
+                    root.active-page = "Player";
+                }
                 toggle-save(slug) => { root.toggle-watchlist(slug); }
                 see-all(type) => {
                     if (type == "continue") {
@@ -133,7 +154,10 @@ export component AppWindow inherits Window {
                 genre-selected(slug) => { root.filter-genre(slug); }
                 type-selected(t) => { root.filter-type(t); }
                 movie-selected(slug) => { root.select-movie(slug); }
-                play-movie(slug) => { root.play-movie(slug); }
+                play-movie(slug) => {
+                    root.play-movie(slug);
+                    root.active-page = "Player";
+                }
                 toggle-save(slug) => { root.toggle-watchlist(slug); }
                 page-changed(p) => { root.change-page(p); }
             }
@@ -146,7 +170,10 @@ export component AppWindow inherits Window {
                 episodes: root.detail-episodes;
                 keywords: root.detail-keywords;
                 back-clicked => { root.active-page = "Home"; }
-                play-episode(ep) => { root.play-episode(ep); }
+                play-episode(ep) => {
+                    root.play-episode(ep);
+                    root.active-page = "Player";
+                }
                 toggle-save(slug) => { root.toggle-watchlist(slug); }
                 keyword-clicked(kw) => {
                     root.search-query-text = kw;
@@ -155,11 +182,38 @@ export component AppWindow inherits Window {
                 }
             }
 
+            if root.active-page == "Player" : PlayerPage {
+                movie: root.current-playing-movie;
+                current-episode: root.current-episode;
+                episodes: root.current-episodes;
+                is-playing <=> root.is-playing;
+                progress-seconds <=> root.player-progress-seconds;
+                duration-seconds <=> root.player-duration-seconds;
+                time-display <=> root.player-time-display;
+                progress-percent <=> root.player-progress-percent;
+                playback-speed <=> root.player-speed;
+                volume-level <=> root.player-volume;
+                active-server <=> root.player-server;
+                back-clicked => { root.active-page = "Detail"; }
+                toggle-play => { root.play-movie(root.current-playing-movie.slug); }
+                skip-10(fwd) => { root.skip-10(fwd); }
+                seek-percent(p) => { root.seek-percent(p); }
+                cycle-speed => { root.cycle-speed(); }
+                select-episode(ep) => { root.play-episode(ep); }
+                switch-server(srv) => { root.player-server = srv; }
+                open-fullscreen => { root.open-fullscreen(); }
+                toggle-save(slug) => { root.toggle-watchlist(slug); }
+                next-episode => { root.next-episode(); }
+            }
+
             if root.active-page == "Library" : LibraryPage {
                 saved-movies: root.library-saved-movies;
                 history-movies: root.library-history-movies;
                 movie-selected(slug) => { root.select-movie(slug); }
-                play-movie(slug) => { root.play-movie(slug); }
+                play-movie(slug) => {
+                    root.play-movie(slug);
+                    root.active-page = "Player";
+                }
                 toggle-save(slug) => { root.toggle-watchlist(slug); }
             }
         }
@@ -169,6 +223,9 @@ export component AppWindow inherits Window {
             suggestions: root.right-panel-suggestions;
             current-playing: root.current-playing-movie;
             is-playing: root.is-playing;
+            current-episode-name: root.current-episode.name != "" ? root.current-episode.name : "Tập 01 (Full)";
+            cinema-time: root.player-time-display;
+            cinema-progress-percent: root.player-progress-percent;
             movie-selected(slug) => { root.select-movie(slug); }
             genre-selected(g) => {
                 root.active-page = "Discover";
@@ -180,11 +237,11 @@ export component AppWindow inherits Window {
             toggle-save(slug) => {
                 root.toggle-watchlist(slug);
             }
-            prev-track => {
-                root.prev-movie();
+            skip-10(fwd) => {
+                root.skip-10(fwd);
             }
-            next-track => {
-                root.next-movie();
+            open-player => {
+                root.active-page = "Player";
             }
         }
     }

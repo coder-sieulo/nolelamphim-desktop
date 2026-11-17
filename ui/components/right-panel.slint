@@ -6,13 +6,16 @@ export component RightPanel inherits Rectangle {
     in property <MovieItem> current-playing;
     in-out property <bool> is-playing: false;
     in-out property <string> selected-genre: "All";
+    in-out property <string> current-episode-name: "Tập 01 (Full)";
+    in-out property <string> cinema-time: "00:35:10 / 02:14:00";
+    in-out property <int> cinema-progress-percent: 26;
 
     callback movie-selected(string);
     callback genre-selected(string);
     callback toggle-play();
     callback toggle-save(string);
-    callback prev-track();
-    callback next-track();
+    callback skip-10(bool);
+    callback open-player();
 
     width: 290px;
     background: #090a0d88;
@@ -26,10 +29,294 @@ export component RightPanel inherits Rectangle {
     }
 
     VerticalLayout {
-        padding: 18px;
-        spacing: 16px;
+        padding: 16px;
+        spacing: 14px;
 
-        // Panel 1: Picked for you
+        // Panel 1: Now Streaming Cinema Preview Widget
+        Rectangle {
+            border-radius: Theme.radius-lg;
+            background: @linear-gradient(135deg, Theme.primary.with-alpha(0.20) 0%, #151211 100%);
+            border-width: 1px;
+            border-color: Theme.primary.with-alpha(0.35);
+
+            VerticalLayout {
+                padding: 12px;
+                spacing: 10px;
+
+                // Widget Header
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    HorizontalLayout {
+                        spacing: 6px;
+                        alignment: center;
+                        Text { text: "🎬"; font-size: 13px; vertical-alignment: center; }
+                        Text {
+                            text: "ĐANG PHÁT";
+                            color: Theme.primary-light;
+                            font-size: 10px;
+                            font-weight: 800;
+                            letter-spacing: 1.5px;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    // Heart Bookmark Button
+                    Rectangle {
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 12px;
+                        background: heart-touch.has-hover ? #ffffff18 : #00000000;
+
+                        Text {
+                            text: root.current-playing.is-saved ? "♥" : "♡";
+                            color: root.current-playing.is-saved ? Theme.primary : Theme.text-muted;
+                            font-size: 15px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        heart-touch := TouchArea {
+                            clicked => { root.toggle-save(root.current-playing.slug); }
+                        }
+                    }
+                }
+
+                // 16:9 Cinema Thumbnail Banner
+                Rectangle {
+                    height: 100px;
+                    border-radius: 8px;
+                    background: #000000;
+                    border-width: 1px;
+                    border-color: #ffffff14;
+                    clip: true;
+
+                    Image {
+                        width: 100%;
+                        height: 100%;
+                        source: @image-url("../../assets/images/hero_placeholder.png");
+                        image-fit: cover;
+                        opacity: 0.6;
+                    }
+
+                    if root.current-playing.has-poster : Image {
+                        width: 100%;
+                        height: 100%;
+                        source: root.current-playing.poster;
+                        image-fit: cover;
+                        opacity: 0.45;
+                    }
+
+                    Rectangle {
+                        width: 100%;
+                        height: 100%;
+                        background: @linear-gradient(180deg, #00000000 0%, #000000cc 100%);
+                    }
+
+                    // Quality Badge
+                    Rectangle {
+                        x: 8px;
+                        y: 8px;
+                        height: 18px;
+                        border-radius: 3px;
+                        background: Theme.primary;
+                        HorizontalLayout {
+                            padding-left: 6px; padding-right: 6px;
+                            Text { text: "1080p FHD"; color: Theme.text-dark; font-size: 8px; font-weight: 800; vertical-alignment: center; }
+                        }
+                    }
+
+                    // Stream Status
+                    Rectangle {
+                        x: parent.width - 70px;
+                        y: 8px;
+                        height: 18px;
+                        border-radius: 3px;
+                        background: #00000088;
+                        border-width: 1px;
+                        border-color: #ffffff22;
+                        HorizontalLayout {
+                            padding-left: 6px; padding-right: 6px;
+                            Text {
+                                text: root.is-playing ? "🟢 Đang phát" : "⏸ Tạm dừng";
+                                color: root.is-playing ? #4ade80 : #f87171;
+                                font-size: 8px;
+                                font-weight: 700;
+                                vertical-alignment: center;
+                            }
+                        }
+                    }
+
+                    // Center Play Overlay
+                    Rectangle {
+                        x: (parent.width - 36px) / 2;
+                        y: (parent.height - 36px) / 2;
+                        width: 36px;
+                        height: 36px;
+                        border-radius: 18px;
+                        background: #000000aa;
+                        border-width: 1.5px;
+                        border-color: Theme.primary;
+
+                        Text {
+                            text: root.is-playing ? "⏸" : "▶";
+                            color: Theme.primary-light;
+                            font-size: 14px;
+                            font-weight: 800;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => {
+                                root.is-playing = !root.is-playing;
+                                root.toggle-play();
+                            }
+                        }
+                    }
+
+                    // Bottom Title in Preview
+                    Text {
+                        x: 8px;
+                        y: parent.height - 22px;
+                        width: parent.width - 16px;
+                        text: root.current-playing.title != "" ? root.current-playing.title : "Dune: Part Two";
+                        color: #ffffff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        overflow: elide;
+                    }
+                }
+
+                // Cinema Progress Timeline
+                VerticalLayout {
+                    spacing: 4px;
+
+                    HorizontalLayout {
+                        alignment: space-between;
+                        Text { text: root.cinema-time; color: #a1a1aa; font-size: 9px; font-weight: 600; }
+                        Text { text: root.cinema-progress-percent + "%"; color: Theme.primary-light; font-size: 9px; font-weight: 700; }
+                    }
+
+                    Rectangle {
+                        height: 4px;
+                        background: #ffffff24;
+                        border-radius: 2px;
+
+                        Rectangle {
+                            x: 0;
+                            width: parent.width * (root.cinema-progress-percent / 100.0);
+                            height: 100%;
+                            background: Theme.primary;
+                            border-radius: 2px;
+                        }
+                    }
+                }
+
+                // Movie Controls Row (Rewind 10s, Play/Pause, Forward 10s, Fullscreen Cinema)
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    // Rewind 10s
+                    Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: rw-mini-touch.has-hover ? #ffffff18 : #ffffff0c;
+                        Text { text: "⏪"; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                        rw-mini-touch := TouchArea {
+                            clicked => {
+                                root.cinema-progress-percent = Math.max(0, root.cinema-progress-percent - 5);
+                                root.skip-10(false);
+                            }
+                        }
+                    }
+
+                    // Play/Pause Circle
+                    Rectangle {
+                        width: 36px;
+                        height: 36px;
+                        border-radius: 18px;
+                        background: Theme.primary;
+
+                        Text {
+                            text: root.is-playing ? "⏸" : "▶";
+                            color: Theme.text-dark;
+                            font-size: 13px;
+                            font-weight: 800;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        TouchArea {
+                            clicked => {
+                                root.is-playing = !root.is-playing;
+                                root.toggle-play();
+                            }
+                        }
+                    }
+
+                    // Forward 10s
+                    Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: ff-mini-touch.has-hover ? #ffffff18 : #ffffff0c;
+                        Text { text: "⏩"; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+                        ff-mini-touch := TouchArea {
+                            clicked => {
+                                root.cinema-progress-percent = Math.min(100, root.cinema-progress-percent + 5);
+                                root.skip-10(true);
+                            }
+                        }
+                    }
+
+                    // Open Full In-App Player Page
+                    Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: cinema-touch.has-hover ? Theme.primary.with-alpha(0.3) : #ffffff0c;
+                        border-width: 1px;
+                        border-color: Theme.primary.with-alpha(0.4);
+
+                        Text {
+                            text: "⛶";
+                            font-size: 13px;
+                            color: Theme.primary-light;
+                            font-weight: 800;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        cinema-touch := TouchArea {
+                            clicked => { root.open-player(); }
+                        }
+                    }
+                }
+
+                // Direct Action Button: Vào Phòng Chiếu Phim
+                Rectangle {
+                    height: 28px;
+                    border-radius: 14px;
+                    background: enter-touch.has-hover ? Theme.primary.with-alpha(0.3) : #ffffff0d;
+                    border-width: 1px;
+                    border-color: Theme.primary.with-alpha(0.4);
+
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 6px;
+                        Text { text: "🎬 Vào Phòng Chiếu →"; color: Theme.primary-light; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+                    }
+
+                    enter-touch := TouchArea {
+                        clicked => { root.open-player(); }
+                    }
+                }
+            }
+        }
+
+        // Panel 2: Picked for you (Curated Cinema Recommendations)
         Rectangle {
             border-radius: Theme.radius-lg;
             background: Theme.panel;
@@ -38,34 +325,34 @@ export component RightPanel inherits Rectangle {
 
             VerticalLayout {
                 padding: 14px;
-                spacing: 12px;
+                spacing: 10px;
 
                 // Title
                 HorizontalLayout {
                     spacing: 8px;
                     alignment: start;
 
-                    Text { text: "✨"; font-size: 14px; vertical-alignment: center; }
+                    Text { text: "✨"; font-size: 13px; vertical-alignment: center; }
 
                     VerticalLayout {
-                        spacing: 2px;
+                        spacing: 1px;
                         Text {
-                            text: "Picked for you";
+                            text: "Gợi ý phim hay";
                             color: Theme.text-primary;
-                            font-size: 13px;
+                            font-size: 12px;
                             font-weight: 700;
                         }
                         Text {
-                            text: "Based on your movie taste";
+                            text: "Dành riêng cho bạn hôm nay";
                             color: Theme.text-muted;
-                            font-size: 10px;
+                            font-size: 9px;
                         }
                     }
                 }
 
                 // Suggestions List
                 for item in root.suggestions : Rectangle {
-                    height: 52px;
+                    height: 50px;
                     border-radius: 8px;
                     background: sug-touch.has-hover ? #ffffff0d : #00000000;
 
@@ -81,9 +368,9 @@ export component RightPanel inherits Rectangle {
 
                         // Mini Thumb
                         Rectangle {
-                            width: 38px;
-                            height: 48px;
-                            border-radius: 6px;
+                            width: 36px;
+                            height: 44px;
+                            border-radius: 5px;
                             background: Theme.card-bg;
                             clip: true;
 
@@ -104,7 +391,7 @@ export component RightPanel inherits Rectangle {
                         // Info
                         VerticalLayout {
                             horizontal-stretch: 1;
-                            spacing: 3px;
+                            spacing: 2px;
                             alignment: center;
 
                             Text {
@@ -125,9 +412,9 @@ export component RightPanel inherits Rectangle {
 
                         // Save / Bookmark action button
                         Rectangle {
-                            width: 26px;
-                            height: 26px;
-                            border-radius: 13px;
+                            width: 24px;
+                            height: 24px;
+                            border-radius: 12px;
                             background: item.is-saved ? Theme.primary.with-alpha(0.3) : save-touch.has-hover ? #ffffff24 : #ffffff14;
                             border-width: 1px;
                             border-color: item.is-saved ? Theme.primary : #ffffff18;
@@ -135,7 +422,7 @@ export component RightPanel inherits Rectangle {
                             Text {
                                 text: item.is-saved ? "✓" : "+";
                                 color: item.is-saved ? Theme.primary-light : Theme.text-primary;
-                                font-size: 12px;
+                                font-size: 11px;
                                 font-weight: 700;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
@@ -150,7 +437,7 @@ export component RightPanel inherits Rectangle {
             }
         }
 
-        // Panel 2: Your top genres
+        // Panel 3: Cinema Genres Cloud
         Rectangle {
             border-radius: Theme.radius-lg;
             background: Theme.panel;
@@ -158,16 +445,16 @@ export component RightPanel inherits Rectangle {
             border-color: Theme.border;
 
             VerticalLayout {
-                padding: 14px;
-                spacing: 10px;
+                padding: 12px;
+                spacing: 8px;
 
                 HorizontalLayout {
-                    spacing: 8px;
-                    Text { text: "📊"; font-size: 13px; vertical-alignment: center; }
+                    spacing: 6px;
+                    Text { text: "🍿"; font-size: 12px; vertical-alignment: center; }
                     Text {
-                        text: "Your top genres";
+                        text: "Thể Loại Điện Ảnh";
                         color: Theme.text-primary;
-                        font-size: 13px;
+                        font-size: 12px;
                         font-weight: 700;
                         vertical-alignment: center;
                     }
@@ -180,46 +467,43 @@ export component RightPanel inherits Rectangle {
                     Rectangle {
                         height: 26px;
                         border-radius: 13px;
-                        background: root.selected-genre == "Action" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
+                        background: root.selected-genre == "Chiếu Rạp" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
                         border-width: 1px;
-                        border-color: root.selected-genre == "Action" ? Theme.primary : #ffffff12;
+                        border-color: root.selected-genre == "Chiếu Rạp" ? Theme.primary : #ffffff12;
 
                         HorizontalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            Text { text: "Action"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
+                            padding-left: 10px; padding-right: 10px;
+                            Text { text: "Chiếu Rạp"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
                         }
-                        TouchArea { clicked => { root.selected-genre = "Action"; root.genre-selected("Action"); } }
+                        TouchArea { clicked => { root.selected-genre = "Chiếu Rạp"; root.genre-selected("phim-chieu-rap"); } }
                     }
 
                     Rectangle {
                         height: 26px;
                         border-radius: 13px;
-                        background: root.selected-genre == "Sci-Fi" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
+                        background: root.selected-genre == "Hành Động" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
                         border-width: 1px;
-                        border-color: root.selected-genre == "Sci-Fi" ? Theme.primary : #ffffff12;
+                        border-color: root.selected-genre == "Hành Động" ? Theme.primary : #ffffff12;
 
                         HorizontalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            Text { text: "Sci-Fi"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
+                            padding-left: 10px; padding-right: 10px;
+                            Text { text: "Hành Động"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
                         }
-                        TouchArea { clicked => { root.selected-genre = "Sci-Fi"; root.genre-selected("Sci-Fi"); } }
+                        TouchArea { clicked => { root.selected-genre = "Hành Động"; root.genre-selected("hanh-dong"); } }
                     }
 
                     Rectangle {
                         height: 26px;
                         border-radius: 13px;
-                        background: root.selected-genre == "Drama" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
+                        background: root.selected-genre == "Viễn Tưởng" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
                         border-width: 1px;
-                        border-color: root.selected-genre == "Drama" ? Theme.primary : #ffffff12;
+                        border-color: root.selected-genre == "Viễn Tưởng" ? Theme.primary : #ffffff12;
 
                         HorizontalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            Text { text: "Drama"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
+                            padding-left: 10px; padding-right: 10px;
+                            Text { text: "Viễn Tưởng"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
                         }
-                        TouchArea { clicked => { root.selected-genre = "Drama"; root.genre-selected("Drama"); } }
+                        TouchArea { clicked => { root.selected-genre = "Viễn Tưởng"; root.genre-selected("vien-tuong"); } }
                     }
                 }
 
@@ -229,16 +513,15 @@ export component RightPanel inherits Rectangle {
                     Rectangle {
                         height: 26px;
                         border-radius: 13px;
-                        background: root.selected-genre == "Thriller" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
+                        background: root.selected-genre == "Kinh Dị" ? Theme.primary.with-alpha(0.25) : #ffffff0d;
                         border-width: 1px;
-                        border-color: root.selected-genre == "Thriller" ? Theme.primary : #ffffff12;
+                        border-color: root.selected-genre == "Kinh Dị" ? Theme.primary : #ffffff12;
 
                         HorizontalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
-                            Text { text: "Thriller"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
+                            padding-left: 10px; padding-right: 10px;
+                            Text { text: "Kinh Dị"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
                         }
-                        TouchArea { clicked => { root.selected-genre = "Thriller"; root.genre-selected("Thriller"); } }
+                        TouchArea { clicked => { root.selected-genre = "Kinh Dị"; root.genre-selected("kinh-di"); } }
                     }
 
                     Rectangle {
@@ -249,190 +532,11 @@ export component RightPanel inherits Rectangle {
                         border-color: root.selected-genre == "Anime" ? Theme.primary : #ffffff12;
 
                         HorizontalLayout {
-                            padding-left: 10px;
-                            padding-right: 10px;
+                            padding-left: 10px; padding-right: 10px;
                             Text { text: "Anime"; font-size: 10px; color: Theme.text-secondary; vertical-alignment: center; }
                         }
-                        TouchArea { clicked => { root.selected-genre = "Anime"; root.genre-selected("Anime"); } }
+                        TouchArea { clicked => { root.selected-genre = "Anime"; root.genre-selected("hoat-hinh"); } }
                     }
-                }
-            }
-        }
-
-        // Spacer pushing mini-player to bottom
-        Rectangle {
-            vertical-stretch: 1;
-        }
-
-        // Panel 3: Now Playing Mini Player
-        Rectangle {
-            border-radius: Theme.radius-lg;
-            background: @linear-gradient(120deg, Theme.primary.with-alpha(0.18) 0%, #ffffff09 100%);
-            border-width: 1px;
-            border-color: Theme.primary.with-alpha(0.28);
-
-            VerticalLayout {
-                padding: 14px;
-                spacing: 12px;
-
-                // Movie Info Row
-                HorizontalLayout {
-                    spacing: 10px;
-                    alignment: center;
-
-                    // Poster
-                    Rectangle {
-                        width: 44px;
-                        height: 54px;
-                        border-radius: 6px;
-                        background: Theme.card-bg;
-                        clip: true;
-
-                        Image {
-                            width: 100%;
-                            height: 100%;
-                            source: @image-url("../../assets/images/poster_placeholder.png");
-                            image-fit: cover;
-                        }
-                        if root.current-playing.has-poster : Image {
-                            width: 100%;
-                            height: 100%;
-                            source: root.current-playing.poster;
-                            image-fit: cover;
-                        }
-                    }
-
-                    VerticalLayout {
-                        horizontal-stretch: 1;
-                        spacing: 3px;
-                        alignment: center;
-
-                        Text {
-                            text: root.current-playing.title != "" ? root.current-playing.title : "Dune: Part Two";
-                            color: Theme.text-primary;
-                            font-size: 12px;
-                            font-weight: 700;
-                            overflow: elide;
-                        }
-
-                        Text {
-                            text: "Selected for your next watch";
-                            color: Theme.text-muted;
-                            font-size: 9px;
-                        }
-                    }
-
-                    Rectangle {
-                        width: 28px;
-                        height: 28px;
-                        border-radius: 14px;
-                        background: heart-touch.has-hover ? #ffffff18 : #00000000;
-
-                        Text {
-                            text: root.current-playing.is-saved ? "♥" : "♡";
-                            color: root.current-playing.is-saved ? Theme.primary : Theme.text-muted;
-                            font-size: 16px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-
-                        heart-touch := TouchArea {
-                            clicked => { root.toggle-save(root.current-playing.slug); }
-                        }
-                    }
-                }
-
-                // Progress Track
-                Rectangle {
-                    height: 3px;
-                    background: #ffffff24;
-                    border-radius: 2px;
-
-                    Rectangle {
-                        x: 0;
-                        width: parent.width * 0.42;
-                        height: 100%;
-                        background: Theme.primary;
-                        border-radius: 2px;
-                    }
-                }
-
-                // Controls Row
-                HorizontalLayout {
-                    alignment: space-between;
-
-                    Text { text: "01:24"; font-size: 10px; color: Theme.text-muted; vertical-alignment: center; }
-
-                    HorizontalLayout {
-                        spacing: 14px;
-                        alignment: center;
-
-                        // Prev Track
-                        Rectangle {
-                            width: 28px;
-                            height: 28px;
-                            border-radius: 14px;
-                            background: prev-touch.has-hover ? #ffffff18 : #00000000;
-
-                            Text {
-                                text: "⏮";
-                                font-size: 13px;
-                                color: prev-touch.has-hover ? Theme.text-primary : Theme.text-secondary;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-
-                            prev-touch := TouchArea {
-                                clicked => { root.prev-track(); }
-                            }
-                        }
-
-                        // Play/Pause Circle
-                        Rectangle {
-                            width: 32px;
-                            height: 32px;
-                            border-radius: 16px;
-                            background: Theme.primary;
-
-                            Text {
-                                text: root.is-playing ? "⏸" : "▶";
-                                color: Theme.text-dark;
-                                font-size: 12px;
-                                font-weight: 800;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-
-                            TouchArea {
-                                clicked => {
-                                    root.is-playing = !root.is-playing;
-                                    root.toggle-play();
-                                }
-                            }
-                        }
-
-                        // Next Track
-                        Rectangle {
-                            width: 28px;
-                            height: 28px;
-                            border-radius: 14px;
-                            background: next-touch.has-hover ? #ffffff18 : #00000000;
-
-                            Text {
-                                text: "⏭";
-                                font-size: 13px;
-                                color: next-touch.has-hover ? Theme.text-primary : Theme.text-secondary;
-                                horizontal-alignment: center;
-                                vertical-alignment: center;
-                            }
-
-                            next-touch := TouchArea {
-                                clicked => { root.next-track(); }
-                            }
-                        }
-                    }
-
-                    Text { text: "02:18"; font-size: 10px; color: Theme.text-muted; vertical-alignment: center; }
                 }
             }
         }
