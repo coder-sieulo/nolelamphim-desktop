@@ -1,153 +1,195 @@
-# Implementation Plan — Nolelamphim-desktop
+# Implementation Plan — Nolelamphim-desktop (Comprehensive Multi-API Integration)
 
 A high-performance, cross-platform native desktop movie discovery application built with **Rust** and **Slint**, styled with a **Cinematic Dark Liquid Glass** design inspired by Cinefy.
 
 ---
 
-## 1. Executive Summary & Goals
+## 1. Executive Summary & Architecture Principles
 
-### 1.1 Objectives
-- Build a native, fluid desktop application for Windows, Linux, and macOS using a single Rust codebase.
-- Implement a **Cinematic Dark Liquid Glass UI** reflecting the provided HTML/CSS mockup (`mockup/index.html`).
-- Integrate seamlessly with the provided public Vietnamese movie APIs (prioritizing `https://phimapi.com` / KKPhim with compatibility for `vsmov.com` and `nguonc.com`).
-- Ensure UI responsiveness through asynchronous request processing (Tokio runtime) and non-blocking image loading.
-- Provide a robust local watchlist / library without requiring a separate backend database.
-
----
-
-## 2. API Analysis & Data Mapping
-
-From the provided documentation (`API-phimV3.md`, `API phim.md`, `API-phimv2.md`), we identify the primary API endpoints:
-
-| Feature | Primary Endpoint (`https://phimapi.com`) | Alternate (`vsmov.com` / `nguonc.com`) | Response Handling |
-|---|---|---|---|
-| **Home Featured / Trending** | `GET /v1/api/home` or `/danh-sach/phim-moi-cap-nhat?page=1` | `/api/danh-sach/phim-moi-cap-nhat` | Extract hero banners & trending 6-card row |
-| **Movie List by Category** | `GET /v1/api/danh-sach/{type}?page={p}` (`phim-le`, `phim-bo`, `hoat-hinh`) | `/films/danh-sach/{slug}` | Paginated list with pagination metadata |
-| **Search Movies** | `GET /v1/api/tim-kiem?keyword={kw}&limit=20` | `/api/tim-kiem?keyword={kw}` | Instant / debounced search results |
-| **Genre Listing & Filter** | `GET /the-loai` & `GET /v1/api/the-loai/{slug}?page=1` | `/api/the-loai/{slug}` | Dynamic genre tab buttons & filtered grid |
-| **Movie Details & Episodes** | `GET /v1/api/phim/{slug}` or `/phim/{slug}` | `/api/phim/{slug}` | Full synopsis, poster, actors, episodes & stream links |
-
-### Key Serde Data Models:
-1. `MovieSummary`: `id`, `name`, `origin_name`, `slug`, `thumb_url`, `poster_url`, `year`, `quality`, `lang`, `time`, `category`, `country`.
-2. `MovieDetail`: Extends summary with `content` (synopsis), `trailer_url`, `director`, `actor`, `episodes` (servers + episode stream URLs).
-3. `ApiResponse<T>`: Wrapper for `status`, `message`, `data` (with `items`, `params.pagination`).
-4. `Pagination`: `totalItems`, `totalItemsPerPage`, `currentPage`, `totalPages`.
+### 1.1 Core Principles
+- **Toàn diện API (All-in-One API Integration)**: Không chỉ dùng một API đơn lẻ, ứng dụng tích hợp **toàn bộ các API và endpoint** được cung cấp trong tài liệu (`API-phimV3.md`, `API phim.md`, `API-phimv2.md`), bao gồm cả 3 nguồn:
+  1. **KKPhim / PhimAPI** (`https://phimapi.com`)
+  2. **Nguồn C** (`https://phim.nguonc.com/api`)
+  3. **Vsmov** (`https://vsmov.com/api`)
+- **Multi-Source Engine & Fallback**: Thiết kế kiến trúc `MovieProvider` trait trong Rust, cho phép:
+  - Chọn nguồn dữ liệu trực tiếp từ giao diện (Settings hoặc Header switcher).
+  - Tự động fallback (dự phòng) khi một server gặp sự cố hoặc thiếu tập/hình ảnh.
+  - Tìm kiếm hợp nhất (Unified Search) đa nguồn.
+- **Tận dụng 100% các endpoint chuyên sâu**:
+  - Dữ liệu phim trang chủ & phim mới.
+  - Phân loại theo loại phim (Phim lẻ, Phim bộ, Hoạt hình, TV Shows, Chiếu rạp).
+  - Lọc theo thể loại, quốc gia, năm phát hành, ngôn ngữ (Vietsub, Thuyết minh, Lồng tiếng).
+  - Chi tiết diễn viên & ê-kíp làm phim (`peoples` / `dien-vien`).
+  - Bộ sưu tập hình ảnh, poster, backdrop (`images`).
+  - Từ khóa & tag phim (`keywords`).
+  - Tra cứu mã mở rộng TMDB & IMDb (`tmdb`, `imdb`).
+  - Danh sách server phát và tập phim (`episodes`).
 
 ---
 
-## 3. UI/UX Architecture (Slint + Liquid Glass)
+## 2. Full API Mapping & Endpoint Matrix
 
-Based on `mockup/index.html`, the desktop layout uses a **3-column responsive desktop structure**:
+### 2.1 Ma trận Endpoint chi tiết
+
+| Nhóm tính năng | PhimAPI (KKPhim) | Nguồn C | Vsmov | Mục đích sử dụng trên Desktop UI |
+|---|---|---|---|---|
+| **Trang chủ & Mới nhất** | `/v1/api/home`<br>`/danh-sach/phim-moi-cap-nhat` | `/films/phim-moi-cap-nhat` | `/api/danh-sach/phim-moi-cap-nhat` | Hero banner, Trending Now row, New Updates row |
+| **Phân loại Phim** | `/v1/api/danh-sach/{type}`<br>(`phim-le`, `phim-bo`, `hoat-hinh`, `tv-shows`, `phim-chieu-rap`) | `/films/danh-sach/{slug}`<br>(`phim-bo`, `phim-le`, `tv-shows`) | `/api/danh-sach/subteam` | Tab điều hướng danh mục phim ở Sidebar & Discover |
+| **Tìm kiếm phim** | `/v1/api/tim-kiem?keyword={kw}` | `/films/search?keyword={kw}` | `/api/tim-kiem?keyword={kw}` | Search bar (Ctrl+K), tìm kiếm đa nguồn với gợi ý tức thì |
+| **Bộ lọc Thể loại** | `/the-loai`<br>`/v1/api/the-loai/{slug}` | `/films/the-loai/{slug}` | `/api/the-loai`<br>`/api/the-loai/{slug}` | Genre tabs trên Discover, Genre Cloud ở Right Panel |
+| **Bộ lọc Quốc gia** | `/quoc-gia`<br>`/v1/api/quoc-gia/{slug}` | `/films/quoc-gia/{slug}` | `/api/quoc-gia`<br>`/api/quoc-gia/{slug}` | Filter bar chọn quốc gia (Hàn Quốc, Âu Mỹ, Trung Quốc...) |
+| **Bộ lọc Năm** | `/nam-phat-hanh`<br>`/v1/api/nam/{year}` | `/films/nam-phat-hanh/{year}` | `/api/nam`<br>`/api/nam/{year}` | Filter dropdown duyệt phim theo năm |
+| **Bộ lọc Ngôn ngữ** | Tham số `lang` trong bộ lọc | `/films/ngon-ngu/{slug}` (`vietsub`, `thuyet-minh`, `long-tieng`) | Tham số query | Bộ lọc phiên bản lồng tiếng / vietsub |
+| **Chi tiết Phim & Tập** | `/v1/api/phim/{slug}`<br>`/phim/{slug}`<br>`/phim/id/{id}` | `/film/{slug}` | `/api/phim/{slug}` | Trang Movie Detail: tóm tắt, server phát, danh sách tập |
+| **Diễn viên & Ê-kíp** | `/v1/api/phim/{slug}/peoples` | Thông tin trong `movie.casts` | `/api/dien-vien` | Section "Cast & Crew" với danh sách diễn viên & đạo diễn |
+| **Bộ sưu tập Ảnh** | `/v1/api/phim/{slug}/images` | Poster / Thumb từ detail | TMDB image links | Gallery hình ảnh, poster chất lượng cao, backdrop viewer |
+| **Từ khóa (Keywords)** | `/v1/api/phim/{slug}/keywords` | Tags | Tags | Tag pills để tìm kiếm các phim có chủ đề liên quan |
+| **Tra cứu TMDB / IMDb** | `/tmdb/{type}/{id}`<br>`/imdb/title/{id}` | `tmdb.id`, `imdb.id` | Dữ liệu TMDB | Lấy điểm đánh giá, thông tin bổ sung chuẩn quốc tế |
+
+---
+
+## 3. Rust Multi-Provider Architecture
 
 ```text
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                                Nolelamphim Desktop Window                              │
-├──────────────┬──────────────────────────────────────────────────────────┬──────────────┤
-│   SIDEBAR    │                      MAIN CONTENT AREA                   │ RIGHT PANEL  │
-│   (224px)    ├──────────────────────────────────────────────────────────┤   (300px)    │
-│              │ TOPBAR: [Search Movie... Ctrl+K]      [Bell] [User Profile] │              │
-│ • Logo       ├──────────────────────────────────────────────────────────┤ • Picked     │
-│ • Navigation │ HERO SECTION:                                            │   For You    │
-│   - Home     │   [Large Movie Backdrop]                                 │              │
-│   - Discover │   "TRENDING #1" | Title | Watch Now Button | Watchlist   │ • Top Genres │
-│   - Library  ├──────────────────────────────────────────────────────────┤   Cloud      │
-│ • Playlists  │ SECTION 1: Trending Now (6-col movie poster grid)        │              │
-│ • Pro Badge  ├──────────────────────────────────────────────────────────┤ • Now Playing│
-│ • Settings   │ SECTION 2: Continue Watching (3-col cards with progress) │   Mini Player│
-│              ├──────────────────────────────────────────────────────────┤   (Track &   │
-│              │ SECTION 3: Made for Your Mood (6-col grid)               │    Controls) │
-└──────────────┴──────────────────────────────────────────────────────────┴──────────────┘
+┌─────────────────────────────────────────────────────────┐
+│                   Slint UI Layer                        │
+└───────────────────────────┬─────────────────────────────┘
+                            │ (Events & Callbacks)
+┌───────────────────────────▼─────────────────────────────┐
+│                 Application Service Layer               │
+│                                                         │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │                MovieAggregatorService             │  │
+│  │  • Active Provider State (PhimAPI / NguonC / Vsmov)│ │
+│  │  • Fallback Handler & Unified Cache               │  │
+│  │  • Multi-Source Search Executor                   │  │
+│  └─────────────────────────┬─────────────────────────┘  │
+└────────────────────────────┼────────────────────────────┘
+                             │
+            ┌────────────────┴────────────────┐
+            ▼                                 ▼
+┌───────────────────────┐         ┌───────────────────────┐
+│  trait MovieProvider  │         │   Image & Data Cache  │
+└───────────┬───────────┘         └───────────────────────┘
+            │
+    ┌───────┼─────────────────────────┐
+    ▼       ▼                         ▼
+┌──────────────┐         ┌──────────────┐         ┌──────────────┐
+│ PhimApiEngine│         │ NguonCEngine │         │ VsmovEngine  │
+│ (phimapi.com)│         │ (nguonc.com) │         │ (vsmov.com)  │
+└──────────────┘         └──────────────┘         └──────────────┘
 ```
 
-### Slint Component Tree:
-```text
-ui/
-├── app-window.slint             <-- Root window & page switcher
-├── themes/
-│   └── theme.slint              <-- Color tokens, fonts, spacing, glass styles
-├── components/
-│   ├── sidebar.slint            <-- Left navigation, brand, playlist items
-│   ├── topbar.slint             <-- Search input (Ctrl+K), avatar, notifications
-│   ├── hero-banner.slint        <-- Featured movie backdrop with call-to-actions
-│   ├── movie-card.slint         <-- Card with poster, rank badge, hover play/heart
-│   ├── continue-card.slint      <-- Cards with progress bar
-│   ├── right-panel.slint        <-- Recommendations, genre cloud, mini-player
-│   ├── search-modal.slint       <-- Quick search overlay / dropdown
-│   └── loading.slint            <-- Skeleton loaders & spinners
-└── pages/
-    ├── home.slint               <-- Hero + Trending + Continue + Mood rows
-    ├── discover.slint           <-- Genre filter tabs + 5-column paginated grid
-    ├── movie-detail.slint       <-- Backdrop, synopsis, genres, episode picker
-    └── library.slint            <-- Watchlist & favorites with empty state
+### 3.1 Định nghĩa Trait `MovieProvider`
+```rust
+#[async_trait]
+pub trait MovieProvider: Send + Sync {
+    fn provider_name(&self) -> &'static str;
+    
+    // Trang chủ & Danh mục
+    async fn fetch_home_feed(&self) -> Result<HomeFeedData, AppError>;
+    async fn fetch_by_category(&self, category: &str, page: u32) -> Result<MovieListResponse, AppError>;
+    
+    // Chi tiết & Tập phim
+    async fn fetch_movie_detail(&self, slug: &str) -> Result<MovieDetailData, AppError>;
+    async fn fetch_peoples(&self, slug: &str) -> Result<Vec<PersonItem>, AppError>;
+    async fn fetch_images(&self, slug: &str) -> Result<MovieGallery, AppError>;
+    async fn fetch_keywords(&self, slug: &str) -> Result<Vec<String>, AppError>;
+    
+    // Tìm kiếm & Bộ lọc
+    async fn search_movies(&self, query: &str, page: u32) -> Result<MovieListResponse, AppError>;
+    async fn fetch_genres(&self) -> Result<Vec<GenreItem>, AppError>;
+    async fn fetch_movies_by_genre(&self, slug: &str, page: u32) -> Result<MovieListResponse, AppError>;
+    async fn fetch_countries(&self) -> Result<Vec<CountryItem>, AppError>;
+    async fn fetch_movies_by_country(&self, slug: &str, page: u32) -> Result<MovieListResponse, AppError>;
+    async fn fetch_years(&self) -> Result<Vec<u32>, AppError>;
+    async fn fetch_movies_by_year(&self, year: u32, page: u32) -> Result<MovieListResponse, AppError>;
+    
+    // TMDB / IMDb tra cứu ngoài
+    async fn lookup_tmdb(&self, media_type: &str, tmdb_id: &str) -> Result<TmdbMeta, AppError>;
+    async fn lookup_imdb(&self, imdb_id: &str) -> Result<ImdbMeta, AppError>;
+}
 ```
-
-### Design Tokens:
-- **Background**: `#090A0D` with radial orange/violet glow
-- **Panel Surface (Glass)**: `rgba(255, 255, 255, 0.055)`
-- **Border**: `rgba(255, 255, 255, 0.105)`
-- **Primary Accent**: `#FF781F` (Orange), Secondary `#FFAD65`
-- **Text**: `#F7F6F3` (Primary), `#9899A2` (Muted)
-- **Typography**: DM Sans / Space Grotesk styling
 
 ---
 
-## 4. Technical Architecture & Rust Implementation
+## 4. Slint UI / UX Alignment (Liquid Glass & Cinefy)
 
-### Key Technical Considerations:
-1. **Thread Separation**: UI thread remains strictly 60+ FPS responsive; all network requests and image downloads are spawned on the Tokio thread pool.
-2. **Image Loading in Slint**:
-   - Slint accepts `slint::Image`.
-   - We implement an asynchronous image loader that downloads poster bytes in background, decodes via the `image` crate, and updates the Slint `Model` on completion.
-3. **Data Caching**:
-   - Cache API responses in memory (LRU or TTL) to prevent repeated network hits when switching between Home and Discover tabs.
-   - Cache posters in a local cache directory (`~/.cache/nolelamphim-desktop/images/`).
-4. **Local Watchlist**:
-   - Store saved movies and playback progress in `watchlist.json` under the user configuration directory (`directories` crate).
+### 4.1 Bố cục 3 Cột (Responsive)
+- **Cột Trái (Sidebar - 224px)**:
+  - Brand Logo + Cinematic Tagline.
+  - Nút chuyển nguồn API đang hoạt động (PhimAPI / Nguồn C / Vsmov).
+  - Navigation chính: **Home**, **Discover**, **Library**.
+  - Playlists cá nhân: Chill Movies, Action Bangers, Feel Good Vibes, Anime Corner.
+  - Pro Badge / Upgrade Card.
+  - Utilities: Settings, Notifications, Theme Toggle.
+- **Cột Giữa (Main Content - Fluid)**:
+  - **Topbar**: Search Bar tích hợp phím tắt `Ctrl + K`, Avatar người dùng, Chuông thông báo, Bộ lọc nhanh nguồn dữ liệu.
+  - **Trang Home**:
+    - Hero Section (phim nổi bật lớn, tag `TRENDING #1`, Watch Now, Add to Watchlist).
+    - Section "Trending Now" (dãy 6 phim, badge rank số 1..6, điểm rating).
+    - Section "Continue Watching" (dãy 3 phim kèm thanh tiến độ %).
+    - Section "Made for your mood" (dãy 6 phim theo thể loại gợi ý).
+    - Section "Phim Chiếu Rạp Mới" & "Hoạt Hình Nổi Bật".
+  - **Trang Discover**:
+    - Bộ lọc đa tầng: Thể loại (Genre Tabs), Quốc gia (Country Filter), Năm phát hành, Phân loại (Phim lẻ / Phim bộ / Chiếu rạp).
+    - Lưới phim 5 cột chuẩn tỷ lệ 2:3 với lazy loading & phân trang mượt mà.
+  - **Trang Movie Detail (Dedicated View / Modal)**:
+    - Backdrop cỡ lớn với hiệu ứng làm mờ Cinematic.
+    - Poster, Tiêu đề gốc, Năm, Thời lượng, Quốc gia, Điểm TMDB/IMDb.
+    - Danh sách diễn viên (`peoples`) kèm ảnh đại diện & vai diễn.
+    - Bộ sưu tập hình ảnh (`images`) có thể phóng to.
+    - Từ khóa phim (`keywords`) tương tác được.
+    - Danh sách máy chủ (Server 1, Server 2) & tập phim để chọn xem.
+  - **Trang Library**:
+    - Danh sách phim yêu thích đã lưu (Watchlist).
+    - Lịch sử xem phim (Continue Watching).
+- **Cột Phải (Right Panel - 300px)**:
+  - **Picked for you**: 4 phim gợi ý cá nhân hóa kèm nút thêm nhanh vào danh sách.
+  - **Your top genres**: Cloud thể loại tương tác (Action, Sci-Fi, Drama...).
+  - **Now Playing Mini-Player**: Widget phim đang chọn, thanh thời gian, nút Play/Pause, tua tập trước/sau.
 
 ---
 
 ## 5. Phased Roadmap
 
-### Phase 1: Project Setup & Dependencies
-- Initialize `Cargo.toml` with `slint`, `slint-build`, `tokio`, `reqwest`, `serde`, `serde_json`, `tracing`, `tracing-subscriber`, `image`, `directories`.
-- Create `build.rs` to compile `ui/app-window.slint`.
-- Configure `.env.example` and `.gitignore`.
-- Verify minimal Slint window opens.
+### Giai đoạn 1: Khởi tạo Cargo & Cấu hình Slint
+- `Cargo.toml`: Thêm `slint`, `slint-build`, `tokio`, `reqwest`, `serde`, `serde_json`, `tracing`, `tracing-subscriber`, `image`, `directories`, `async-trait`.
+- `build.rs`: Biên dịch toàn bộ cây giao diện Slint.
+- Cấu trúc thư mục `ui/` và `src/`.
 
-### Phase 2: Design System & Shared Components (Slint)
-- Implement `ui/themes/theme.slint` with color palette, dimensions, and typography.
-- Implement `ui/components/sidebar.slint` (navigation items, playlist list, upgrade card).
-- Implement `ui/components/topbar.slint` (search input, keyboard shortcut badge, avatar).
-- Implement `ui/components/movie-card.slint` (aspect ratio 2:3, hover overlay, rank badge, rating).
-- Implement `ui/components/continue-card.slint` (backdrop, progress bar).
-- Implement `ui/components/right-panel.slint` (picked for you, genre cloud, mini player).
+### Giai đoạn 2: Slint Design System & Toàn bộ Components
+- `ui/themes/theme.slint`: Bảng màu Cinematic Dark & Liquid Glass tokens.
+- `ui/components/`:
+  - `sidebar.slint`, `topbar.slint`, `hero-banner.slint`, `movie-card.slint`, `continue-card.slint`.
+  - `right-panel.slint`, `peoples-list.slint`, `gallery-view.slint`, `episode-selector.slint`.
+  - `loading.slint`, `empty-view.slint`.
 
-### Phase 3: Page Views (Slint Mockup Alignment)
-- Implement `ui/pages/home.slint`: Hero section, Trending Now row, Continue Watching row, Mood row.
-- Implement `ui/pages/discover.slint`: Genre pills, search query binding, 5-column grid.
-- Implement `ui/pages/movie-detail.slint`: Backdrop header, movie metadata, server tabs, episode grid.
-- Implement `ui/pages/library.slint`: Watchlist grid and empty state placeholder.
-- Assemble all views into `ui/app-window.slint` with active tab switching.
+### Giai đoạn 3: Slint Pages Assembly
+- Xây dựng 4 màn hình chính: `home.slint`, `discover.slint`, `movie-detail.slint`, `library.slint`.
+- Gắn kết logic chuyển trang và trạng thái hiển thị trong `app-window.slint`.
 
-### Phase 4: Data Models & API Client (Rust)
-- Define Rust structs for PhimAPI / KKPhim response schemas in `src/models/`.
-- Build HTTP client in `src/api/client.rs` with timeout, headers, and error handling.
-- Build query builders in `src/api/endpoints.rs`.
-- Write unit tests for API deserialization.
+### Giai đoạn 4: Triển khai Engine Đa Nguồn API (Rust)
+- Định nghĩa đầy đủ models Serde cho cả 3 nguồn (`phimapi`, `nguonc`, `vsmov`).
+- Cài đặt trait `MovieProvider` cho:
+  - `PhimApiEngine` (hỗ trợ toàn bộ 17+ endpoint KKPhim).
+  - `NguonCEngine` (hỗ trợ 8 endpoint Nguồn C).
+  - `VsmovEngine` (hỗ trợ 8 endpoint Vsmov).
+- Cài đặt `MovieAggregatorService` quản lý nguồn đang chọn và tự động fallback.
 
-### Phase 5: State Bridge & UI Integration
-- Bridge Slint callbacks: `navigate_to(page)`, `search_input(text)`, `select_movie(slug)`, `toggle_watchlist(id)`.
-- Connect `MovieService` to fetch live data from `phimapi.com` on startup.
-- Populate Home page (Hero, Trending, Recommended) from live API.
-- Implement Discover search and genre filtering with debounced input.
-- Implement Movie Detail modal / screen with live episode list.
+### Giai đoạn 5: Async State Bridge & Tích hợp vào Slint UI
+- Cầu nối dữ liệu Slint ↔ Tokio Async Tasks.
+- Kết nối dữ liệu thời gian thực:
+  - Nạp Home feed (Hero, Trending, Phim mới).
+  - Nạp Discover với đầy đủ bộ lọc Thể loại, Quốc gia, Năm.
+  - Nạp Movie Detail với diễn viên (`peoples`), bộ sưu tập ảnh (`images`), từ khóa (`keywords`), và danh sách tập phim.
+  - Nạp gợi ý ở Right Panel và Mini-Player.
 
-### Phase 6: Image Caching & Local Watchlist
-- Implement async image downloading and disk cache.
-- Implement `WatchlistService` to save favorites and continue-watching timestamps to local disk.
-- Reflect saved status immediately across Home, Discover, and Detail pages.
+### Giai đoạn 6: Image Cache & Watchlist Cục bộ
+- Cache poster & backdrop vào ổ đĩa (`~/.cache/nolelamphim-desktop/images`).
+- Lưu trữ Watchlist và lịch sử xem phim vào `watchlist.json`.
 
-### Phase 7: Polish & Cross-Platform Packaging
-- Add loading skeleton animations and network error / retry toasts.
-- Verify hotkey support (`Ctrl+K` for search, `Esc` to close detail).
-- Test on Linux and prepare build scripts for Windows (`.exe` via MSVC) and macOS (`.app`).
+### Giai đoạn 7: Kiểm thử, Tối ưu & Đóng gói Cross-Platform
+- Kiểm thử phản hồi nhanh khi mất mạng / server API quá tải.
+- Tối ưu bộ nhớ khi tải hàng trăm poster.
+- Kiểm tra build release trên Windows, Linux và macOS.
