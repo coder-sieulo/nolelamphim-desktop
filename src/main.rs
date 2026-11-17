@@ -51,15 +51,30 @@ pub fn open_target_url(url: &str) {
     tracing::info!("Opening external stream/player URL: {}", url);
     #[cfg(target_os = "linux")]
     {
-        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+        let _ = std::process::Command::new("xdg-open")
+            .arg(url)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
     }
     #[cfg(target_os = "windows")]
     {
-        let _ = std::process::Command::new("cmd").args(["/C", "start", "", url]).spawn();
+        let _ = std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
     }
     #[cfg(target_os = "macos")]
     {
-        let _ = std::process::Command::new("open").arg(url).spawn();
+        let _ = std::process::Command::new("open")
+            .arg(url)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
     }
 }
 
@@ -204,16 +219,6 @@ fn trigger_play_movie(
             let duration_secs = parse_duration_seconds(&detail.summary.time);
             let time_display = format_cinema_duration(0, duration_secs as i64);
 
-            if let Some(ref ep) = first_ep {
-                let stream_url = if !ep.link_embed.is_empty() {
-                    ep.link_embed.to_string()
-                } else {
-                    ep.link_m3u8.to_string()
-                };
-                if !stream_url.is_empty() {
-                    open_target_url(&stream_url);
-                }
-            }
             let updated_hist = stor.add_to_history(detail.summary.clone(), 25).await;
             let win_weak_hist = window_weak.clone();
             let summary_clone = detail.summary;
@@ -1003,10 +1008,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     win.set_player_server(ep.server_name.clone());
                 }
             }
-
-            if !target_url.is_empty() {
-                open_target_url(&target_url);
-            }
         });
     }
 
@@ -1115,13 +1116,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         win.set_player_time_display(SharedString::from(format_cinema_duration(0, duration as i64)));
                         win.set_is_playing(true);
 
-                        let target_url = if !next_ep.link_embed.is_empty() {
-                            next_ep.link_embed.to_string()
-                        } else {
-                            next_ep.link_m3u8.to_string()
-                        };
-                        if !target_url.is_empty() {
-                            open_target_url(&target_url);
+                        if !next_ep.server_name.is_empty() {
+                            win.set_player_server(next_ep.server_name.clone());
                         }
                     }
                 }

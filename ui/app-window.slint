@@ -195,7 +195,7 @@ export component AppWindow inherits Window {
                 volume-level <=> root.player-volume;
                 active-server <=> root.player-server;
                 back-clicked => { root.active-page = "Detail"; }
-                toggle-play => { root.play-movie(root.current-playing-movie.slug); }
+                toggle-play => { root.is-playing = !root.is-playing; }
                 skip-10(fwd) => { root.skip-10(fwd); }
                 seek-percent(p) => { root.seek-percent(p); }
                 cycle-speed => { root.cycle-speed(); }
@@ -232,7 +232,7 @@ export component AppWindow inherits Window {
                 root.filter-genre(g);
             }
             toggle-play => {
-                root.play-movie(root.current-playing-movie.slug);
+                root.is-playing = !root.is-playing;
             }
             toggle-save(slug) => {
                 root.toggle-watchlist(slug);
