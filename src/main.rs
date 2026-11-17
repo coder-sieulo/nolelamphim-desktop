@@ -337,6 +337,14 @@ fn load_discover_images_concurrent(
     });
 }
 
+#[derive(Clone, Debug)]
+enum DiscoverFilter {
+    Trending,
+    Genre(String),
+    Category(String),
+    Search(String),
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
@@ -347,6 +355,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let storage = Arc::new(StorageService::new());
     let image_cache = Arc::new(ImageCacheService::new(config.enable_image_cache));
     let media_player = Arc::new(MediaPlayerService::new());
+    let discover_filter = Arc::new(tokio::sync::Mutex::new(DiscoverFilter::Trending));
 
     let main_window = AppWindow::new()?;
 
@@ -634,12 +643,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 win.set_hero_movie(featured.clone());
                                 win.set_current_playing_movie(featured);
                             }
-                            win.set_trending_movies(ModelRc::new(VecModel::from(slint_initial)));
+                            win.set_trending_movies(ModelRc::new(VecModel::from(slint_initial.clone())));
+                            win.set_discover_movies(ModelRc::new(VecModel::from(slint_initial.clone())));
+
+                            if slint_initial.len() >= 6 {
+                                let mood_slice: Vec<MovieItem> = slint_initial.iter().skip(1).take(6).cloned().collect();
+                                win.set_mood_movies(ModelRc::new(VecModel::from(mood_slice)));
+                            }
+                            if slint_initial.len() >= 4 {
+                                let sug_slice: Vec<MovieItem> = slint_initial.iter().rev().take(4).cloned().collect();
+                                win.set_right_panel_suggestions(ModelRc::new(VecModel::from(sug_slice)));
+                            }
+                            win.set_discover_current_page(1);
+                            win.set_discover_total_pages(10);
                         }
                     });
 
                     // Step 2: Background parallel image loading with non-blocking row-by-row updates
-                    load_trending_images_concurrent(live_movies, cache.clone(), window_weak.clone());
+                    load_trending_images_concurrent(live_movies.clone(), cache.clone(), window_weak.clone());
+                    load_discover_images_concurrent(live_movies, cache.clone(), window_weak.clone());
                 }
                 Ok(_) => tracing::info!("API returned empty movies list."),
                 Err(e) => tracing::warn!("Live API fetch error (using fallback data): {}", e),
@@ -751,6 +773,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
         let cache = image_cache.clone();
+        let disc_filter = discover_filter.clone();
         main_window.on_search_query(move |query| {
             let q = query.to_string();
             tracing::info!("Search query: {}", q);
@@ -759,14 +782,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let win_weak = window_weak.clone();
             let agg_clone = agg.clone();
             let c_fetch = cache.clone();
+            let df = disc_filter.clone();
             tokio::spawn(async move {
+                {
+                    let mut lock = df.lock().await;
+                    *lock = DiscoverFilter::Search(q.clone());
+                }
                 if let Ok(results) = agg_clone.search_movies(&q, 1).await {
                     let win_weak_ui = win_weak.clone();
                     let items_clone = results.items.clone();
+                    let total_pages = results.pagination.total_pages.max(1) as i32;
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(win) = win_weak_ui.upgrade() {
                             let slint_results: Vec<MovieItem> = items_clone.iter().map(to_slint_movie_item).collect();
                             win.set_discover_movies(ModelRc::new(VecModel::from(slint_results)));
+                            win.set_discover_current_page(1);
+                            win.set_discover_total_pages(total_pages);
                         }
                     });
                     load_discover_images_concurrent(results.items, c_fetch, win_weak);
@@ -816,6 +847,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
         let cache = image_cache.clone();
+        let disc_filter = discover_filter.clone();
         main_window.on_filter_genre(move |genre_slug| {
             let slug = genre_slug.to_string();
             tracing::info!("Filter by genre: {}", slug);
@@ -823,6 +855,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let agg_clone = agg.clone();
             let c_fetch = cache.clone();
             let slug_for_active = slug.clone();
+            let df = disc_filter.clone();
 
             if let Some(win) = window_weak.upgrade() {
                 let genres_model = win.get_discover_genres();
@@ -835,16 +868,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             tokio::spawn(async move {
+                {
+                    let mut lock = df.lock().await;
+                    *lock = DiscoverFilter::Genre(slug.clone());
+                }
                 let fetch_res = if slug == "All" || slug.is_empty() {
                     agg_clone.get_home_trending().await.map(|items| models::UnifiedMovieListResponse {
                         items,
                         pagination: models::UnifiedPagination {
                             current_page: 1,
                             total_items: 20,
-                            total_pages: 1,
+                            total_pages: 10,
                             items_per_page: 20,
                         }
                     })
+                } else if slug == "phim-chieu-rap" || slug == "hoat-hinh" || slug == "phim-le" || slug == "phim-bo" || slug == "tv-shows" {
+                    agg_clone.get_movies_by_category(&slug, 1).await
                 } else {
                     agg_clone.get_movies_by_genre(&slug, 1).await
                 };
@@ -852,10 +891,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Ok(results) = fetch_res {
                     let win_weak_ui = win_weak.clone();
                     let items_clone = results.items.clone();
+                    let total_pages = results.pagination.total_pages.max(1) as i32;
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(win) = win_weak_ui.upgrade() {
                             let slint_movies: Vec<MovieItem> = items_clone.iter().map(to_slint_movie_item).collect();
                             win.set_discover_movies(ModelRc::new(VecModel::from(slint_movies)));
+                            win.set_discover_current_page(1);
+                            win.set_discover_total_pages(total_pages);
                         }
                     });
                     load_discover_images_concurrent(results.items, c_fetch, win_weak);
@@ -869,20 +911,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
         let cache = image_cache.clone();
+        let disc_filter = discover_filter.clone();
         main_window.on_filter_type(move |movie_type| {
             let t = movie_type.to_string();
             tracing::info!("Filter by movie type: {}", t);
             let win_weak = window_weak.clone();
             let agg_clone = agg.clone();
             let c_fetch = cache.clone();
+            let df = disc_filter.clone();
             tokio::spawn(async move {
+                {
+                    let mut lock = df.lock().await;
+                    *lock = DiscoverFilter::Category(t.clone());
+                }
                 let fetch_res = if t == "all" || t.is_empty() {
                     agg_clone.get_home_trending().await.map(|items| models::UnifiedMovieListResponse {
                         items,
                         pagination: models::UnifiedPagination {
                             current_page: 1,
                             total_items: 20,
-                            total_pages: 1,
+                            total_pages: 10,
                             items_per_page: 20,
                         }
                     })
@@ -893,10 +941,99 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Ok(results) = fetch_res {
                     let win_weak_ui = win_weak.clone();
                     let items_clone = results.items.clone();
+                    let total_pages = results.pagination.total_pages.max(1) as i32;
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(win) = win_weak_ui.upgrade() {
                             let slint_movies: Vec<MovieItem> = items_clone.iter().map(to_slint_movie_item).collect();
                             win.set_discover_movies(ModelRc::new(VecModel::from(slint_movies)));
+                            win.set_discover_current_page(1);
+                            win.set_discover_total_pages(total_pages);
+                        }
+                    });
+                    load_discover_images_concurrent(results.items, c_fetch, win_weak);
+                }
+            });
+        });
+    }
+
+    // Discover Pagination Callback (Next / Prev Page)
+    {
+        let window_weak = main_window.as_weak();
+        let agg = aggregator.clone();
+        let cache = image_cache.clone();
+        let disc_filter = discover_filter.clone();
+        main_window.on_change_page(move |page| {
+            let page_num = page.max(1) as u32;
+            tracing::info!("Changing Discover page to: {}", page_num);
+            let win_weak = window_weak.clone();
+            let agg_clone = agg.clone();
+            let c_fetch = cache.clone();
+            let df = disc_filter.clone();
+            tokio::spawn(async move {
+                let current_filter = {
+                    let lock = df.lock().await;
+                    lock.clone()
+                };
+
+                let fetch_res = match current_filter {
+                    DiscoverFilter::Trending => {
+                        agg_clone.get_home_trending().await.map(|items| models::UnifiedMovieListResponse {
+                            items,
+                            pagination: models::UnifiedPagination {
+                                current_page: page_num,
+                                total_items: 20,
+                                total_pages: 10,
+                                items_per_page: 20,
+                            }
+                        })
+                    }
+                    DiscoverFilter::Genre(ref slug) => {
+                        if slug == "All" || slug.is_empty() {
+                            agg_clone.get_home_trending().await.map(|items| models::UnifiedMovieListResponse {
+                                items,
+                                pagination: models::UnifiedPagination {
+                                    current_page: page_num,
+                                    total_items: 20,
+                                    total_pages: 10,
+                                    items_per_page: 20,
+                                }
+                            })
+                        } else if slug == "phim-chieu-rap" || slug == "hoat-hinh" || slug == "phim-le" || slug == "phim-bo" || slug == "tv-shows" {
+                            agg_clone.get_movies_by_category(slug, page_num).await
+                        } else {
+                            agg_clone.get_movies_by_genre(slug, page_num).await
+                        }
+                    }
+                    DiscoverFilter::Category(ref cat) => {
+                        if cat == "all" || cat.is_empty() {
+                            agg_clone.get_home_trending().await.map(|items| models::UnifiedMovieListResponse {
+                                items,
+                                pagination: models::UnifiedPagination {
+                                    current_page: page_num,
+                                    total_items: 20,
+                                    total_pages: 10,
+                                    items_per_page: 20,
+                                }
+                            })
+                        } else {
+                            agg_clone.get_movies_by_category(cat, page_num).await
+                        }
+                    }
+                    DiscoverFilter::Search(ref kw) => {
+                        agg_clone.search_movies(kw, page_num).await
+                    }
+                };
+
+                if let Ok(results) = fetch_res {
+                    let win_weak_ui = win_weak.clone();
+                    let items_clone = results.items.clone();
+                    let total_pages = results.pagination.total_pages.max(1) as i32;
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = win_weak_ui.upgrade() {
+                            let slint_movies: Vec<MovieItem> = items_clone.iter().map(to_slint_movie_item).collect();
+                            win.set_discover_movies(ModelRc::new(VecModel::from(slint_movies)));
+                            win.set_discover_current_page(page_num as i32);
+                            win.set_discover_total_pages(total_pages);
                         }
                     });
                     load_discover_images_concurrent(results.items, c_fetch, win_weak);
@@ -1251,6 +1388,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let _ = pl.play(&target_url, &movie_title, &ep_name, ww).await;
                             });
                         }
+                    }
+                }
+            }
+        });
+    }
+
+    // Switch Streaming Server in Cinema Player
+    {
+        let window_weak = main_window.as_weak();
+        let player = media_player.clone();
+        main_window.on_switch_server(move |server_name| {
+            let srv = server_name.to_string();
+            tracing::info!("Switching cinema streaming server to: {}", srv);
+            if let Some(win) = window_weak.upgrade() {
+                win.set_player_server(SharedString::from(&srv));
+                let current_ep = win.get_current_episode();
+                let all_episodes = win.get_detail_episodes();
+                let count = all_episodes.row_count();
+                let mut found_ep = None;
+                for i in 0..count {
+                    if let Some(ep) = all_episodes.row_data(i) {
+                        if (ep.server_name == srv || ep.server_name.contains(&srv))
+                            && (ep.name == current_ep.name || ep.slug == current_ep.slug)
+                        {
+                            found_ep = Some(ep);
+                            break;
+                        }
+                    }
+                }
+                if found_ep.is_none() {
+                    for i in 0..count {
+                        if let Some(ep) = all_episodes.row_data(i) {
+                            if ep.server_name == srv || ep.server_name.contains(&srv) {
+                                found_ep = Some(ep);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if let Some(ep) = found_ep {
+                    win.set_current_episode(ep.clone());
+                    let target_url = if !ep.link_m3u8.is_empty() {
+                        ep.link_m3u8.to_string()
+                    } else {
+                        ep.link_embed.to_string()
+                    };
+                    if !target_url.is_empty() {
+                        let p = player.clone();
+                        let title = win.get_current_playing_movie().title.to_string();
+                        let ep_name = ep.name.to_string();
+                        let ww = window_weak.clone();
+                        tokio::spawn(async move {
+                            let _ = p.play(&target_url, &title, &ep_name, ww).await;
+                        });
                     }
                 }
             }

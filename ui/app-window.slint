@@ -31,6 +31,8 @@ export component AppWindow inherits Window {
     in property <[MovieItem]> mood-movies;
     in property <[MovieItem]> discover-movies;
     in property <[GenreFilterItem]> discover-genres;
+    in-out property <int> discover-current-page: 1;
+    in-out property <int> discover-total-pages: 10;
     in property <[MovieItem]> library-saved-movies;
     in property <[MovieItem]> library-history-movies;
     in property <[MovieItem]> right-panel-suggestions;
@@ -76,6 +78,7 @@ export component AppWindow inherits Window {
     callback next-episode();
     callback toggle-play();
     callback change-volume(int);
+    callback switch-server(string);
     callback update-viewport-geometry(length, length, length, length);
 
     public function recompute-viewport() {
@@ -172,6 +175,12 @@ export component AppWindow inherits Window {
                 see-all(type) => {
                     if (type == "continue") {
                         root.active-page = "Library";
+                    } else if (type == "trending") {
+                        root.active-page = "Discover";
+                        root.filter-type("all");
+                    } else if (type == "mood") {
+                        root.active-page = "Discover";
+                        root.filter-genre("tinh-cam");
                     } else {
                         root.active-page = "Discover";
                     }
@@ -181,6 +190,8 @@ export component AppWindow inherits Window {
             if root.active-page == "Discover" : DiscoverPage {
                 movies: root.discover-movies;
                 genres: root.discover-genres;
+                current-page <=> root.discover-current-page;
+                total-pages <=> root.discover-total-pages;
                 genre-selected(slug) => { root.filter-genre(slug); }
                 type-selected(t) => { root.filter-type(t); }
                 movie-selected(slug) => { root.select-movie(slug); }
@@ -239,7 +250,10 @@ export component AppWindow inherits Window {
                 seek-percent(p) => { root.seek-percent(p); }
                 cycle-speed => { root.cycle-speed(); }
                 select-episode(ep) => { root.play-episode(ep); }
-                switch-server(srv) => { root.player-server = srv; }
+                switch-server(srv) => {
+                    root.player-server = srv;
+                    root.switch-server(srv);
+                }
                 open-fullscreen => {
                     root.theater-mode = !root.theater-mode;
                     root.open-fullscreen();
@@ -275,6 +289,7 @@ export component AppWindow inherits Window {
             }
             toggle-play => {
                 root.is-playing = !root.is-playing;
+                root.toggle-play();
             }
             toggle-save(slug) => {
                 root.toggle-watchlist(slug);
