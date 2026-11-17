@@ -100,14 +100,17 @@ impl ImageCacheService {
 
         let _ = fs::create_dir_all(&self.cache_dir);
 
-        // If WebP, transcode to JPEG for fast native Slint loading
-        if url.ends_with(".webp") || target_path.extension().and_then(|s| s.to_str()) == Some("webp") {
-            if let Ok(dyn_img) = image::load_from_memory(&bytes) {
-                let mut jpg_path = target_path.clone();
-                jpg_path.set_extension("jpg");
-                if dyn_img.save_with_format(&jpg_path, image::ImageFormat::Jpeg).is_ok() {
-                    return Ok(jpg_path);
-                }
+        // Transcode and downsample to max 720x1080 to prevent huge 2000x3000 files from eating RAM and disk
+        if let Ok(dyn_img) = image::load_from_memory(&bytes) {
+            let resized = if dyn_img.width() > 720 || dyn_img.height() > 1080 {
+                dyn_img.thumbnail(720, 1080)
+            } else {
+                dyn_img
+            };
+            let mut jpg_path = target_path.clone();
+            jpg_path.set_extension("jpg");
+            if resized.save_with_format(&jpg_path, image::ImageFormat::Jpeg).is_ok() {
+                return Ok(jpg_path);
             }
         }
 

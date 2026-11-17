@@ -64,11 +64,11 @@ fn test_webp_image_loading() {
     // Check existing cached WebP file if present
     let cached_webp = PathBuf::from("/home/viennn/.cache/desktop/images/248e32faa43dd454.webp");
     if cached_webp.exists() {
-        let img = load_slint_image_from_path(&cached_webp);
+        let img = load_slint_image_from_path(&cached_webp, 320, 480);
         assert!(img.is_some(), "WebP image should load successfully into slint::Image");
     }
 
     // Non-existent file should gracefully return None
     let dummy = PathBuf::from("/non/existent/path.webp");
-    assert!(load_slint_image_from_path(&dummy).is_none());
+    assert!(load_slint_image_from_path(&dummy, 320, 480).is_none());
 }
