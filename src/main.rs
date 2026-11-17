@@ -787,35 +787,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    // Search Query -> Debounced Live Search with Loading Indicators
+    // Search Query Handlers: Debounced Live Typing Search + Immediate Submit Search
     {
-        let window_weak = main_window.as_weak();
-        let agg = aggregator.clone();
-        let cache = image_cache.clone();
-        let disc_filter = discover_filter.clone();
         let search_generation = Arc::new(std::sync::atomic::AtomicU64::new(0));
-        main_window.on_search_query(move |query| {
-            let q = query.to_string().trim().to_string();
-            tracing::info!("Search query: {}", q);
 
-            let win_weak = window_weak.clone();
-            let agg_clone = agg.clone();
-            let c_fetch = cache.clone();
-            let df = disc_filter.clone();
-            let search_gen = search_generation.clone();
-
-            if q.is_empty() {
-                search_gen.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                if let Some(win) = window_weak.upgrade() {
-                    win.set_is_searching(false);
-                    win.set_discover_is_loading(true);
+        fn do_search(
+            q: String,
+            immediate: bool,
+            gen_target: u64,
+            win_weak: slint::Weak<AppWindow>,
+            agg_clone: Arc<MovieAggregatorService>,
+            c_fetch: Arc<ImageCacheService>,
+            df: Arc<tokio::sync::Mutex<DiscoverFilter>>,
+            s_gen: Arc<std::sync::atomic::AtomicU64>,
+        ) {
+            tokio::spawn(async move {
+                if !immediate {
+                    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                    if s_gen.load(std::sync::atomic::Ordering::SeqCst) != gen_target {
+                        return;
+                    }
                 }
-                tokio::spawn(async move {
+
+                if q.is_empty() {
                     {
                         let mut lock = df.lock().await;
                         *lock = DiscoverFilter::Trending;
                     }
                     if let Ok(movies) = agg_clone.get_home_trending().await {
+                        if s_gen.load(std::sync::atomic::Ordering::SeqCst) != gen_target {
+                            return;
+                        }
                         let win_weak_ui = win_weak.clone();
                         let movies_clone = movies.clone();
                         let _ = slint::invoke_from_event_loop(move || {
@@ -829,20 +831,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         });
                         load_discover_images_concurrent(movies, c_fetch, win_weak);
+                    } else {
+                        let win_weak_ui = win_weak.clone();
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(win) = win_weak_ui.upgrade() {
+                                win.set_discover_is_loading(false);
+                                win.set_is_searching(false);
+                            }
+                        });
                     }
-                });
-                return;
-            }
-
-            if let Some(win) = window_weak.upgrade() {
-                win.set_is_searching(true);
-                win.set_discover_is_loading(true);
-            }
-            let current_gen = search_gen.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
-
-            tokio::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-                if search_gen.load(std::sync::atomic::Ordering::SeqCst) != current_gen {
                     return;
                 }
 
@@ -853,7 +850,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 match agg_clone.search_movies(&q, 1).await {
                     Ok(results) => {
-                        if search_gen.load(std::sync::atomic::Ordering::SeqCst) != current_gen {
+                        if s_gen.load(std::sync::atomic::Ordering::SeqCst) != gen_target {
                             return;
                         }
                         let win_weak_ui = win_weak.clone();
@@ -872,7 +869,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         load_discover_images_concurrent(results.items, c_fetch, win_weak);
                     }
                     Err(err) => {
-                        if search_gen.load(std::sync::atomic::Ordering::SeqCst) != current_gen {
+                        if s_gen.load(std::sync::atomic::Ordering::SeqCst) != gen_target {
                             return;
                         }
                         tracing::warn!("Search movies failed for {}: {:?}", q, err);
@@ -887,7 +884,46 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             });
-        });
+        }
+
+        // Live typing search with 300ms debounce
+        {
+            let window_weak = main_window.as_weak();
+            let agg = aggregator.clone();
+            let cache = image_cache.clone();
+            let disc_filter = discover_filter.clone();
+            let search_gen = search_generation.clone();
+            main_window.on_search_query(move |query| {
+                let q = query.to_string().trim().to_string();
+                tracing::info!("Live search query: {}", q);
+                let gen = search_gen.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                if let Some(win) = window_weak.upgrade() {
+                    win.set_is_searching(true);
+                    win.set_discover_is_loading(true);
+                }
+                do_search(q, false, gen, window_weak.clone(), agg.clone(), cache.clone(), disc_filter.clone(), search_gen.clone());
+            });
+        }
+
+        // Immediate submitted search (0ms delay on Enter or button click)
+        {
+            let window_weak = main_window.as_weak();
+            let agg = aggregator.clone();
+            let cache = image_cache.clone();
+            let disc_filter = discover_filter.clone();
+            let search_gen = search_generation.clone();
+            main_window.on_submit_search(move |query| {
+                let q = query.to_string().trim().to_string();
+                tracing::info!("Immediate submit search: {}", q);
+                let gen = search_gen.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+                if let Some(win) = window_weak.upgrade() {
+                    win.set_is_searching(true);
+                    win.set_discover_is_loading(true);
+                    win.set_active_page(slint::SharedString::from("Discover"));
+                }
+                do_search(q, true, gen, window_weak.clone(), agg.clone(), cache.clone(), disc_filter.clone(), search_gen.clone());
+            });
+        }
     }
 
     // Change Provider Callback
