@@ -33,158 +33,60 @@ export component DiscoverPage inherits Flickable {
             spacing: 6px;
 
             Text {
-                text: "YOUR NEXT FAVORITE STORY";
+                text: root.search-query != "" ? "KẾT QUẢ TÌM KIẾM" : "YOUR NEXT FAVORITE STORY";
                 color: Theme.primary-light;
                 font-size: 10px;
                 font-weight: 700;
                 letter-spacing: 2.5px;
             }
 
-            Text {
-                text: "Discover Movies & Series";
-                color: Theme.text-primary;
-                font-size: 32px;
-                font-weight: 800;
-            }
-
-            Text {
-                text: "Filter through thousands of titles across multiple sources with high fidelity.";
-                color: Theme.text-muted;
-                font-size: 13px;
-            }
-        }
-
-        // In-page Search Bar for Discover
-        discover-search-box := Rectangle {
-            height: 44px;
-            border-radius: 22px;
-            background: #ffffff0a;
-            border-width: 1px;
-            border-color: disc-search-input.has-focus ? Theme.primary.with-alpha(0.6) : (root.is-loading ? Theme.primary-light.with-alpha(0.4) : #ffffff18);
-
-            disc-box-touch := TouchArea {
-                clicked => {
-                    disc-search-input.focus();
-                }
-            }
-
             HorizontalLayout {
-                padding-left: 16px;
-                padding-right: 8px;
-                spacing: 12px;
-                alignment: center;
+                spacing: 14px;
+                alignment: start;
 
-                Rectangle {
-                    width: 24px;
-                    height: 24px;
-                    border-radius: 12px;
-                    background: disc-icon-touch.has-hover ? #ffffff1e : #00000000;
-
-                    Text {
-                        text: root.is-loading ? "⏳" : "🔍";
-                        font-size: 14px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
-
-                    disc-icon-touch := TouchArea {
-                        clicked => {
-                            if root.search-query != "" {
-                                root.search-submitted(root.search-query);
-                            } else {
-                                disc-search-input.focus();
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    horizontal-stretch: 1;
-                    height: 100%;
-                    clip: true;
-
-                    if root.search-query == "" : Text {
-                        x: 0;
-                        y: 0;
-                        width: 100%;
-                        height: 100%;
-                        text: "Tìm kiếm nhanh trong kho phim (vd: Batman, Conan, Spider-Man)...";
-                        color: Theme.text-muted;
-                        font-size: 13px;
-                        vertical-alignment: center;
-                    }
-
-                    disc-search-input := TextInput {
-                        x: 0;
-                        y: 0;
-                        width: 100%;
-                        height: 100%;
-                        text <=> root.search-query;
-                        color: Theme.text-primary;
-                        font-size: 13px;
-                        vertical-alignment: center;
-
-                        edited => {
-                            root.search-changed(self.text);
-                        }
-
-                        accepted => {
-                            root.search-submitted(self.text);
-                        }
-                    }
+                Text {
+                    text: root.search-query != "" ? ("Tìm kiếm: \"" + root.search-query + "\"") : "Discover Movies & Series";
+                    color: Theme.text-primary;
+                    font-size: 32px;
+                    font-weight: 800;
+                    vertical-alignment: center;
                 }
 
                 if root.search-query != "" : Rectangle {
-                    width: 22px;
-                    height: 22px;
-                    border-radius: 11px;
-                    background: disc-clear-touch.has-hover ? #ffffff2e : #ffffff14;
-
-                    Text {
-                        text: "✕";
-                        font-size: 10px;
-                        color: Theme.text-primary;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
-
-                    disc-clear-touch := TouchArea {
-                        clicked => {
-                            root.search-query = "";
-                            root.search-changed("");
-                        }
-                    }
-                }
-
-                Rectangle {
-                    height: 32px;
-                    border-radius: 16px;
-                    background: disc-btn-touch.has-hover ? Theme.primary-hover : Theme.primary;
+                    height: 28px;
+                    border-radius: 14px;
+                    background: #ffffff14;
+                    border-width: 1px;
+                    border-color: #ffffff22;
 
                     HorizontalLayout {
-                        padding-left: 16px;
-                        padding-right: 16px;
+                        padding-left: 12px;
+                        padding-right: 12px;
                         alignment: center;
 
                         Text {
-                            text: root.is-loading ? "Đang tìm..." : "Tìm kiếm";
-                            color: #ffffff;
-                            font-size: 12px;
-                            font-weight: 700;
+                            text: "✕ Xóa bộ lọc tìm kiếm";
+                            color: Theme.text-secondary;
+                            font-size: 11px;
+                            font-weight: 600;
                             vertical-alignment: center;
                         }
                     }
 
-                    disc-btn-touch := TouchArea {
+                    TouchArea {
                         clicked => {
-                            if root.search-query != "" {
-                                root.search-submitted(root.search-query);
-                            } else {
-                                disc-search-input.focus();
-                            }
+                            root.search-submitted("");
                         }
                     }
                 }
+            }
+
+            Text {
+                text: root.search-query != ""
+                    ? ("Hiển thị kết quả tìm kiếm cho \"" + root.search-query + "\" trên toàn bộ hệ thống nguồn phim.")
+                    : "Filter through thousands of titles across multiple sources with high fidelity.";
+                color: Theme.text-muted;
+                font-size: 13px;
             }
         }
 
@@ -401,8 +303,6 @@ export component DiscoverPage inherits Flickable {
 
         // Responsive Auto-Layout Movies Grid
         if !root.is-loading && root.movies.length > 0 : Rectangle {
-            width: 100%;
-            horizontal-stretch: 1;
             property <length> gap-x: 16px;
             property <length> gap-y: 20px;
             property <length> min-item-w: 150px;
