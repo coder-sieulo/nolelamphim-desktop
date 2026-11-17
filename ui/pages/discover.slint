@@ -10,7 +10,7 @@ export component DiscoverPage inherits Flickable {
     in property <int> current-page: 1;
     in property <int> total-pages: 10;
     in property <bool> is-loading: false;
-    in property <string> search-query: "";
+    in-out property <string> search-query: "";
 
     callback genre-selected(string);
     callback type-selected(string);
@@ -18,6 +18,8 @@ export component DiscoverPage inherits Flickable {
     callback play-movie(string);
     callback toggle-save(string);
     callback page-changed(int);
+    callback search-changed(string);
+    callback search-submitted(string);
 
     viewport-width: self.width;
 
@@ -49,6 +51,140 @@ export component DiscoverPage inherits Flickable {
                 text: "Filter through thousands of titles across multiple sources with high fidelity.";
                 color: Theme.text-muted;
                 font-size: 13px;
+            }
+        }
+
+        // In-page Search Bar for Discover
+        discover-search-box := Rectangle {
+            height: 44px;
+            border-radius: 22px;
+            background: #ffffff0a;
+            border-width: 1px;
+            border-color: disc-search-input.has-focus ? Theme.primary.with-alpha(0.6) : (root.is-loading ? Theme.primary-light.with-alpha(0.4) : #ffffff18);
+
+            disc-box-touch := TouchArea {
+                clicked => {
+                    disc-search-input.focus();
+                }
+            }
+
+            HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 8px;
+                spacing: 12px;
+                alignment: center;
+
+                Rectangle {
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 12px;
+                    background: disc-icon-touch.has-hover ? #ffffff1e : #00000000;
+
+                    Text {
+                        text: root.is-loading ? "⏳" : "🔍";
+                        font-size: 14px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    disc-icon-touch := TouchArea {
+                        clicked => {
+                            if root.search-query != "" {
+                                root.search-submitted(root.search-query);
+                            } else {
+                                disc-search-input.focus();
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    horizontal-stretch: 1;
+                    height: 100%;
+                    clip: true;
+
+                    if root.search-query == "" : Text {
+                        x: 0;
+                        y: 0;
+                        width: 100%;
+                        height: 100%;
+                        text: "Tìm kiếm nhanh trong kho phim (vd: Batman, Conan, Spider-Man)...";
+                        color: Theme.text-muted;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                    }
+
+                    disc-search-input := TextInput {
+                        x: 0;
+                        y: 0;
+                        width: 100%;
+                        height: 100%;
+                        text <=> root.search-query;
+                        color: Theme.text-primary;
+                        font-size: 13px;
+                        vertical-alignment: center;
+
+                        edited => {
+                            root.search-changed(self.text);
+                        }
+
+                        accepted => {
+                            root.search-submitted(self.text);
+                        }
+                    }
+                }
+
+                if root.search-query != "" : Rectangle {
+                    width: 22px;
+                    height: 22px;
+                    border-radius: 11px;
+                    background: disc-clear-touch.has-hover ? #ffffff2e : #ffffff14;
+
+                    Text {
+                        text: "✕";
+                        font-size: 10px;
+                        color: Theme.text-primary;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    disc-clear-touch := TouchArea {
+                        clicked => {
+                            root.search-query = "";
+                            root.search-changed("");
+                        }
+                    }
+                }
+
+                Rectangle {
+                    height: 32px;
+                    border-radius: 16px;
+                    background: disc-btn-touch.has-hover ? Theme.primary-hover : Theme.primary;
+
+                    HorizontalLayout {
+                        padding-left: 16px;
+                        padding-right: 16px;
+                        alignment: center;
+
+                        Text {
+                            text: root.is-loading ? "Đang tìm..." : "Tìm kiếm";
+                            color: #ffffff;
+                            font-size: 12px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    disc-btn-touch := TouchArea {
+                        clicked => {
+                            if root.search-query != "" {
+                                root.search-submitted(root.search-query);
+                            } else {
+                                disc-search-input.focus();
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -265,6 +401,8 @@ export component DiscoverPage inherits Flickable {
 
         // Responsive Auto-Layout Movies Grid
         if !root.is-loading && root.movies.length > 0 : Rectangle {
+            width: 100%;
+            horizontal-stretch: 1;
             property <length> gap-x: 16px;
             property <length> gap-y: 20px;
             property <length> min-item-w: 150px;

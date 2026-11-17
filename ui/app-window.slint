@@ -67,6 +67,7 @@ export component AppWindow inherits Window {
     // Callbacks to Rust Backend
     callback navigate(string);
     callback search-query(string);
+    callback submit-search(string);
     callback select-movie(string);
     callback play-movie(string);
     callback play-episode(EpisodeItem);
@@ -162,12 +163,12 @@ export component AppWindow inherits Window {
                     }
                 }
                 search-submitted(q) => {
-                    root.search-query(q);
+                    root.submit-search(q);
                     root.active-page = "Discover";
                 }
                 clear-search => {
                     root.search-query-text = "";
-                    root.search-query("");
+                    root.submit-search("");
                 }
             }
 
@@ -204,7 +205,13 @@ export component AppWindow inherits Window {
                 current-page <=> root.discover-current-page;
                 total-pages <=> root.discover-total-pages;
                 is-loading <=> root.discover-is-loading;
-                search-query: root.search-query-text;
+                search-query <=> root.search-query-text;
+                search-changed(q) => {
+                    root.search-query(q);
+                }
+                search-submitted(q) => {
+                    root.submit-search(q);
+                }
                 genre-selected(slug) => { root.filter-genre(slug); }
                 type-selected(t) => { root.filter-type(t); }
                 movie-selected(slug) => { root.select-movie(slug); }
