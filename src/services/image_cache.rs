@@ -280,7 +280,7 @@ impl ImageCacheService {
                 .map_err(|e| format!("Failed to decode image from memory: {}", e))?;
 
             let resized = if dyn_img.width() > max_w || dyn_img.height() > max_h {
-                dyn_img.thumbnail(max_w, max_h)
+                dyn_img.resize(max_w, max_h, image::imageops::FilterType::Triangle)
             } else {
                 dyn_img
             };

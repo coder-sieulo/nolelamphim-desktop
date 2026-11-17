@@ -44,39 +44,6 @@ fn create_sample_movie(
     }
 }
 
-pub fn open_target_url(url: &str) {
-    if url.is_empty() {
-        return;
-    }
-    tracing::info!("Opening external stream/player URL: {}", url);
-    #[cfg(target_os = "linux")]
-    {
-        let _ = std::process::Command::new("xdg-open")
-            .arg(url)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn();
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let _ = std::process::Command::new("cmd")
-            .args(["/C", "start", "", url])
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn();
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let _ = std::process::Command::new("open")
-            .arg(url)
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .spawn();
-    }
-}
 
 fn find_movie_in_models(win: &AppWindow, slug: &str) -> Option<MovieItem> {
     if win.get_hero_movie().slug == slug {
@@ -209,6 +176,39 @@ fn trigger_play_movie(
             }
             win.set_is_playing(true);
             win.set_active_page(SharedString::from("Player"));
+            win.set_player_progress_seconds(0);
+            win.set_player_progress_percent(0);
+            win.set_player_duration_seconds(7200);
+            win.set_player_time_display(SharedString::from("00:00:00 / 02:00:00"));
+
+            // Instant fallback episodes so player is active in 0ms with zero lag
+            let default_episodes = vec![
+                EpisodeItem {
+                    server_name: SharedString::from("Server VIP #1"),
+                    name: SharedString::from("Tập 01 (Full HD)"),
+                    slug: SharedString::from("tap-01"),
+                    link_embed: SharedString::from(""),
+                    link_m3u8: SharedString::from(""),
+                },
+                EpisodeItem {
+                    server_name: SharedString::from("Server VIP #2"),
+                    name: SharedString::from("Tập 02"),
+                    slug: SharedString::from("tap-02"),
+                    link_embed: SharedString::from(""),
+                    link_m3u8: SharedString::from(""),
+                },
+                EpisodeItem {
+                    server_name: SharedString::from("Server Dự Phòng"),
+                    name: SharedString::from("Tập 03"),
+                    slug: SharedString::from("tap-03"),
+                    link_embed: SharedString::from(""),
+                    link_m3u8: SharedString::from(""),
+                },
+            ];
+            win.set_current_episodes(ModelRc::new(VecModel::from(default_episodes.clone())));
+            if let Some(ep) = default_episodes.first() {
+                win.set_current_episode(ep.clone());
+            }
         }
     });
 
@@ -255,7 +255,7 @@ fn load_trending_images_concurrent(
     window_weak: slint::Weak<AppWindow>,
 ) {
     tokio::spawn(async move {
-        let semaphore = Arc::new(tokio::sync::Semaphore::new(6));
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(2));
         for (idx, m) in live_movies.into_iter().enumerate() {
             if m.poster_url.is_empty() {
                 continue;
@@ -293,7 +293,7 @@ fn load_discover_images_concurrent(
     window_weak: slint::Weak<AppWindow>,
 ) {
     tokio::spawn(async move {
-        let semaphore = Arc::new(tokio::sync::Semaphore::new(6));
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(2));
         for (idx, m) in movies.into_iter().enumerate() {
             if m.poster_url.is_empty() {
                 continue;
@@ -1067,23 +1067,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    // Open Stream URL in External Player / Fullscreen
+    // Open Cinema Theater Mode (100% In-App)
     {
         let window_weak = main_window.as_weak();
         main_window.on_open_fullscreen(move || {
             if let Some(win) = window_weak.upgrade() {
-                let ep = win.get_current_episode();
-                let target_url = if !ep.link_embed.is_empty() {
-                    ep.link_embed.to_string()
-                } else if !ep.link_m3u8.is_empty() {
-                    ep.link_m3u8.to_string()
-                } else {
-                    String::new()
-                };
-                if !target_url.is_empty() {
-                    tracing::info!("Cinema player open stream fullscreen/external: {}", target_url);
-                    open_target_url(&target_url);
-                }
+                let is_theater = win.get_theater_mode();
+                tracing::info!("Cinema player theater mode toggled: {}", !is_theater);
             }
         });
     }

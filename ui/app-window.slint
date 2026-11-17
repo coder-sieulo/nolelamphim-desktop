@@ -22,6 +22,7 @@ export component AppWindow inherits Window {
     in-out property <string> active-page: "Home";
     in-out property <string> current-provider: "PhimAPI";
     in-out property <string> search-query-text: "";
+    in-out property <bool> theater-mode: false;
 
     // Data Models
     in property <MovieItem> hero-movie;
@@ -76,7 +77,7 @@ export component AppWindow inherits Window {
 
     HorizontalLayout {
         // Left Column: Navigation Sidebar (224px)
-        Sidebar {
+        if !root.theater-mode : Sidebar {
             active-page <=> root.active-page;
             current-provider <=> root.current-provider;
             navigate(page) => {
@@ -105,15 +106,15 @@ export component AppWindow inherits Window {
 
         // Center Column: Main Content (Fluid)
         VerticalLayout {
-            padding-top: 18px;
-            padding-bottom: 18px;
-            padding-left: 24px;
-            padding-right: 24px;
-            spacing: 16px;
+            padding-top: root.theater-mode ? 6px : 18px;
+            padding-bottom: root.theater-mode ? 6px : 18px;
+            padding-left: root.theater-mode ? 12px : 24px;
+            padding-right: root.theater-mode ? 12px : 24px;
+            spacing: root.theater-mode ? 8px : 16px;
             horizontal-stretch: 1;
 
             // Topbar
-            Topbar {
+            if !root.theater-mode : Topbar {
                 search-text <=> root.search-query-text;
                 search-changed(q) => {
                     root.search-query(q);
@@ -187,6 +188,7 @@ export component AppWindow inherits Window {
                 current-episode: root.current-episode;
                 episodes: root.current-episodes;
                 is-playing <=> root.is-playing;
+                theater-mode <=> root.theater-mode;
                 progress-seconds <=> root.player-progress-seconds;
                 duration-seconds <=> root.player-duration-seconds;
                 time-display <=> root.player-time-display;
@@ -201,7 +203,10 @@ export component AppWindow inherits Window {
                 cycle-speed => { root.cycle-speed(); }
                 select-episode(ep) => { root.play-episode(ep); }
                 switch-server(srv) => { root.player-server = srv; }
-                open-fullscreen => { root.open-fullscreen(); }
+                open-fullscreen => {
+                    root.theater-mode = !root.theater-mode;
+                    root.open-fullscreen();
+                }
                 toggle-save(slug) => { root.toggle-watchlist(slug); }
                 next-episode => { root.next-episode(); }
             }
@@ -219,7 +224,7 @@ export component AppWindow inherits Window {
         }
 
         // Right Column: Widgets & Mini-Player (290px)
-        RightPanel {
+        if !root.theater-mode : RightPanel {
             suggestions: root.right-panel-suggestions;
             current-playing: root.current-playing-movie;
             is-playing: root.is-playing;

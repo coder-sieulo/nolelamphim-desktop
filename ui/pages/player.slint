@@ -13,6 +13,7 @@ export component PlayerPage inherits Flickable {
     in-out property <string> playback-speed: "1.0x";
     in-out property <int> volume-level: 85;
     in-out property <string> active-server: "Server VIP #1";
+    in-out property <bool> theater-mode: false;
 
     callback back-clicked();
     callback toggle-play();
@@ -128,7 +129,7 @@ export component PlayerPage inherits Flickable {
                 Rectangle {
                     height: 36px;
                     border-radius: 18px;
-                    background: @linear-gradient(110deg, Theme.primary-light 0%, Theme.primary 100%);
+                    background: root.theater-mode ? #ef4444 : @linear-gradient(110deg, Theme.primary-light 0%, Theme.primary 100%);
 
                     HorizontalLayout {
                         padding-left: 16px;
@@ -136,12 +137,15 @@ export component PlayerPage inherits Flickable {
                         spacing: 6px;
                         alignment: center;
 
-                        Text { text: "⛶"; font-size: 13px; color: Theme.text-dark; font-weight: 800; vertical-alignment: center; }
-                        Text { text: "Mở Rạp Toàn Màn Hình"; font-size: 11px; font-weight: 700; color: Theme.text-dark; vertical-alignment: center; }
+                        Text { text: root.theater-mode ? "🗗" : "⛶"; font-size: 13px; color: root.theater-mode ? #ffffff : Theme.text-dark; font-weight: 800; vertical-alignment: center; }
+                        Text { text: root.theater-mode ? "Thu Nhỏ Phòng Chiếu" : "Mở Rạp Toàn Màn Hình"; font-size: 11px; font-weight: 700; color: root.theater-mode ? #ffffff : Theme.text-dark; vertical-alignment: center; }
                     }
 
                     TouchArea {
-                        clicked => { root.open-fullscreen(); }
+                        clicked => {
+                            root.theater-mode = !root.theater-mode;
+                            root.open-fullscreen();
+                        }
                     }
                 }
             }
@@ -149,7 +153,7 @@ export component PlayerPage inherits Flickable {
 
         // Main Cinema Screen Viewport (16:9 Cinematic Player)
         Rectangle {
-            height: 480px;
+            height: root.theater-mode ? 600px : 480px;
             border-radius: Theme.radius-lg;
             background: #000000;
             border-width: 1px;

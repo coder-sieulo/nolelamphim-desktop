@@ -21,7 +21,7 @@ impl Default for AppConfig {
             vsmov_base_url: "https://vsmov.com/api".to_string(),
             supabase_url: "https://uvzdtpkzixllhzinhtgx.supabase.co".to_string(),
             supabase_anon_key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV2emR0cGt6aXhsbGh6aW5odGd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIwNTk2MTUsImV4cCI6MjEwNzYzNTYxNX0.iNSmUNSX2OW-YvcQm5XDVl5LRcQUMyu9iSdYTVhcJRI".to_string(),
-            request_timeout_secs: 30,
+            request_timeout_secs: 6,
             enable_image_cache: true,
         }
     }
@@ -45,7 +45,7 @@ impl AppConfig {
         let request_timeout_secs = env::var("REQUEST_TIMEOUT")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
-            .unwrap_or(30);
+            .unwrap_or(6);
         let enable_image_cache = env::var("ENABLE_IMAGE_CACHE")
             .map(|v| v.to_lowercase() == "true" || v == "1")
             .unwrap_or(true);

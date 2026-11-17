@@ -122,20 +122,7 @@ impl MovieAggregatorService {
         let engine = self.get_engine(&active_id);
         
         match engine.get_movie_detail(slug).await {
-            Ok(mut detail) => {
-                // Enrich with peoples and keywords if provider supports them
-                if let Ok(peoples) = engine.get_peoples(slug).await {
-                    if !peoples.is_empty() {
-                        detail.actors = peoples;
-                    }
-                }
-                if let Ok(keywords) = engine.get_keywords(slug).await {
-                    if !keywords.is_empty() {
-                        detail.keywords = keywords;
-                    }
-                }
-                Ok(detail)
-            }
+            Ok(detail) => Ok(detail),
             Err(e) => {
                 tracing::warn!("Failed to fetch movie detail for '{}': {}. Trying Supabase fallback...", slug, e);
                 if active_id != "supabase" {
