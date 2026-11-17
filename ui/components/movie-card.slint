@@ -33,6 +33,13 @@ export component MovieCard inherits Rectangle {
                 image-fit: cover;
             }
 
+            if item.has-poster : Image {
+                width: 100%;
+                height: 100%;
+                source: item.poster;
+                image-fit: cover;
+            }
+
             // Dark vignette gradient overlay
             Rectangle {
                 y: parent.height * 0.4;

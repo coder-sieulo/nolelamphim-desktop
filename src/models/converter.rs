@@ -10,6 +10,8 @@ pub fn to_slint_movie_item(u: &UnifiedMovieSummary) -> MovieItem {
         origin_title: SharedString::from(&u.origin_title),
         poster_url: SharedString::from(&u.poster_url),
         backdrop_url: SharedString::from(&u.backdrop_url),
+        poster: slint::Image::default(),
+        has_poster: false,
         genre: SharedString::from(&u.genre),
         year: SharedString::from(&u.year),
         rating: SharedString::from(&u.rating),
@@ -18,6 +20,17 @@ pub fn to_slint_movie_item(u: &UnifiedMovieSummary) -> MovieItem {
         progress: u.progress,
         is_saved: u.is_saved,
     }
+}
+
+pub fn to_slint_movie_item_with_poster(u: &UnifiedMovieSummary, poster_path: Option<&std::path::Path>) -> MovieItem {
+    let mut item = to_slint_movie_item(u);
+    if let Some(path) = poster_path {
+        if let Ok(img) = slint::Image::load_from_path(path) {
+            item.poster = img;
+            item.has_poster = true;
+        }
+    }
+    item
 }
 
 pub fn to_slint_person_item(p: &UnifiedPerson) -> PersonItem {

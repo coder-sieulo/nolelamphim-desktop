@@ -2,7 +2,7 @@ use nolelamphim_desktop::models::phimapi_models::*;
 use nolelamphim_desktop::models::nguonc_models::*;
 use nolelamphim_desktop::models::vsmov_models::*;
 use nolelamphim_desktop::models::{
-    to_slint_episode_item, to_slint_movie_item, to_slint_person_item,
+    to_slint_episode_item, to_slint_movie_item, to_slint_movie_item_with_poster, to_slint_person_item,
     UnifiedEpisode, UnifiedMovieSummary, UnifiedPerson,
 };
 
@@ -128,6 +128,11 @@ fn test_models_converter() {
     assert_eq!(slint_item.rank, 1);
     assert_eq!(slint_item.progress, 50);
     assert!(slint_item.is_saved);
+    assert!(!slint_item.has_poster);
+
+    let item_none = to_slint_movie_item_with_poster(&unified, None);
+    assert_eq!(item_none.title.as_str(), "Test Movie");
+    assert!(!item_none.has_poster);
 
     let person = UnifiedPerson {
         name: "Christopher Nolan".to_string(),

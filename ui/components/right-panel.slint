@@ -85,6 +85,12 @@ export component RightPanel inherits Rectangle {
                                 source: @image-url("../../assets/images/poster_placeholder.png");
                                 image-fit: cover;
                             }
+                            if item.has-poster : Image {
+                                width: 100%;
+                                height: 100%;
+                                source: item.poster;
+                                image-fit: cover;
+                            }
                         }
 
                         // Info
@@ -275,6 +281,12 @@ export component RightPanel inherits Rectangle {
                             width: 100%;
                             height: 100%;
                             source: @image-url("../../assets/images/poster_placeholder.png");
+                            image-fit: cover;
+                        }
+                        if root.current-playing.has-poster : Image {
+                            width: 100%;
+                            height: 100%;
+                            source: root.current-playing.poster;
                             image-fit: cover;
                         }
                     }

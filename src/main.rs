@@ -32,6 +32,8 @@ fn create_sample_movie(
         origin_title: SharedString::from(origin_title),
         poster_url: SharedString::from(""),
         backdrop_url: SharedString::from(""),
+        poster: slint::Image::default(),
+        has_poster: false,
         genre: SharedString::from(genre),
         year: SharedString::from(year),
         rating: SharedString::from(rating),
@@ -39,6 +41,25 @@ fn create_sample_movie(
         quality: SharedString::from("4K HDR"),
         progress,
         is_saved,
+    }
+}
+
+pub fn open_target_url(url: &str) {
+    if url.is_empty() {
+        return;
+    }
+    tracing::info!("Opening external stream/player URL: {}", url);
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let _ = std::process::Command::new("cmd").args(["/C", "start", "", url]).spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open").arg(url).spawn();
     }
 }
 
@@ -306,11 +327,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
 
-                    let slint_movies: Vec<MovieItem> = live_movies.iter().map(to_slint_movie_item).collect();
-                    let first = slint_movies.first().cloned();
+                    let c_ui = cache.clone();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(win) = window_weak.upgrade() {
-                            if let Some(featured) = first {
+                            let slint_movies: Vec<MovieItem> = live_movies
+                                .iter()
+                                .map(|m| {
+                                    let cached = c_ui.get_cached_path(&m.poster_url);
+                                    models::to_slint_movie_item_with_poster(m, cached.as_deref())
+                                })
+                                .collect();
+                            if let Some(featured) = slint_movies.first().cloned() {
                                 win.set_hero_movie(featured.clone());
                                 win.set_current_playing_movie(featured);
                             }
@@ -354,20 +381,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Ok(detail) = agg_clone.get_movie_detail(&slug_str).await {
                     if !detail.summary.poster_url.is_empty() {
                         let url = detail.summary.poster_url.clone();
+                        let c_fetch = c.clone();
                         tokio::spawn(async move {
-                            let _ = c.fetch_image(&url).await;
+                            let _ = c_fetch.fetch_image(&url).await;
                         });
                     }
 
-                    let slint_detail_movie = to_slint_movie_item(&detail.summary);
                     let synopsis = SharedString::from(&detail.content);
                     let director = SharedString::from(&detail.director);
                     let actors: Vec<PersonItem> = detail.actors.iter().map(to_slint_person_item).collect();
                     let episodes: Vec<EpisodeItem> = detail.episodes.iter().map(to_slint_episode_item).collect();
                     let keywords: Vec<SharedString> = detail.keywords.iter().map(SharedString::from).collect();
 
+                    let c_ui = c.clone();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(win) = win_weak.upgrade() {
+                            let cached = c_ui.get_cached_path(&detail.summary.poster_url);
+                            let slint_detail_movie = models::to_slint_movie_item_with_poster(&detail.summary, cached.as_deref());
                             win.set_detail_movie(slint_detail_movie);
                             win.set_detail_synopsis(synopsis);
                             win.set_detail_director(director);
@@ -394,9 +424,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let agg_clone = agg.clone();
             tokio::spawn(async move {
                 if let Ok(results) = agg_clone.search_movies(&q, 1).await {
-                    let slint_results: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(win) = win_weak.upgrade() {
+                            let slint_results: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
                             win.set_discover_movies(ModelRc::new(VecModel::from(slint_results)));
                         }
                     });
@@ -421,11 +451,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio::spawn(async move {
                 agg_clone.set_active_provider(&prov).await;
                 if let Ok(movies) = agg_clone.get_home_trending().await {
-                    let slint_movies: Vec<MovieItem> = movies.iter().map(to_slint_movie_item).collect();
-                    let first = slint_movies.first().cloned();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(win) = win_weak.upgrade() {
-                            if let Some(feat) = first {
+                            let slint_movies: Vec<MovieItem> = movies.iter().map(to_slint_movie_item).collect();
+                            if let Some(feat) = slint_movies.first().cloned() {
                                 win.set_hero_movie(feat.clone());
                                 win.set_current_playing_movie(feat);
                             }
@@ -448,9 +477,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let agg_clone = agg.clone();
             tokio::spawn(async move {
                 if let Ok(results) = agg_clone.get_movies_by_genre(&slug, 1).await {
-                    let slint_movies: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(win) = win_weak.upgrade() {
+                            let slint_movies: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
                             win.set_discover_movies(ModelRc::new(VecModel::from(slint_movies)));
                         }
                     });
@@ -470,9 +499,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let agg_clone = agg.clone();
             tokio::spawn(async move {
                 if let Ok(results) = agg_clone.get_movies_by_category(&t, 1).await {
-                    let slint_movies: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(win) = win_weak.upgrade() {
+                            let slint_movies: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
                             win.set_discover_movies(ModelRc::new(VecModel::from(slint_movies)));
                         }
                     });
@@ -512,10 +541,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 let (_is_saved, updated_list) = stor_clone.toggle_watchlist(movie_summary).await;
-                let slint_saved: Vec<MovieItem> = updated_list.iter().map(to_slint_movie_item).collect();
-
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(win) = win_weak.upgrade() {
+                        let slint_saved: Vec<MovieItem> = updated_list.iter().map(to_slint_movie_item).collect();
                         win.set_library_saved_movies(ModelRc::new(VecModel::from(slint_saved)));
                     }
                 });
@@ -554,16 +582,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 let updated_history = stor_clone.add_to_history(movie_summary, 25).await;
-                let slint_hist: Vec<MovieItem> = updated_history.iter().map(to_slint_movie_item).collect();
-
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(win) = win_weak.upgrade() {
+                        let slint_hist: Vec<MovieItem> = updated_history.iter().map(to_slint_movie_item).collect();
                         win.set_continue_movies(ModelRc::new(VecModel::from(slint_hist.clone())));
                         win.set_library_history_movies(ModelRc::new(VecModel::from(slint_hist)));
                         win.set_is_playing(true);
                     }
                 });
             });
+        });
+    }
+
+    // Play Episode Callback -> Open Stream URL or Web Embed Player
+    {
+        main_window.on_play_episode(move |ep| {
+            let target_url = if !ep.link_embed.is_empty() {
+                ep.link_embed.to_string()
+            } else {
+                ep.link_m3u8.to_string()
+            };
+            tracing::info!("Playing episode '{}' on server '{}': {}", ep.name, ep.server_name, target_url);
+            open_target_url(&target_url);
         });
     }
 

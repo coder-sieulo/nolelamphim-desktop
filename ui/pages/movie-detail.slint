@@ -91,6 +91,13 @@ export component MovieDetailPage inherits Flickable {
                         source: @image-url("../../assets/images/poster_placeholder.png");
                         image-fit: cover;
                     }
+
+                    if root.movie.has-poster : Image {
+                        width: 100%;
+                        height: 100%;
+                        source: root.movie.poster;
+                        image-fit: cover;
+                    }
                 }
 
                 // Info Details
