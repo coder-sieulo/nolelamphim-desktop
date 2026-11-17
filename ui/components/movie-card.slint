@@ -15,10 +15,10 @@ export component MovieCard inherits Rectangle {
         spacing: 8px;
         alignment: start;
 
-        // Poster Container
+        // Poster Container (Fluid auto layout)
         poster-box := Rectangle {
-            width: 160px;
-            height: 228px;
+            width: 100%;
+            height: root.height - 47px;
             background: Theme.card-bg;
             border-radius: Theme.radius-md;
             border-width: 1px;

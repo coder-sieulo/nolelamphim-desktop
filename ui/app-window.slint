@@ -24,6 +24,12 @@ export component AppWindow inherits Window {
     in-out property <string> search-query-text: "";
     in-out property <bool> theater-mode: false;
 
+    // Loading & Buffering States
+    in-out property <bool> is-searching: false;
+    in-out property <bool> discover-is-loading: false;
+    in-out property <bool> detail-is-loading: false;
+    in-out property <bool> player-is-buffering: false;
+
     // Data Models
     in property <MovieItem> hero-movie;
     in property <[MovieItem]> trending-movies;
@@ -148,6 +154,7 @@ export component AppWindow inherits Window {
             // Topbar
             if !root.theater-mode : Topbar {
                 search-text <=> root.search-query-text;
+                is-loading <=> root.is-searching;
                 search-changed(q) => {
                     root.search-query(q);
                     if (q != "" && root.active-page != "Discover") {
@@ -157,6 +164,10 @@ export component AppWindow inherits Window {
                 search-submitted(q) => {
                     root.search-query(q);
                     root.active-page = "Discover";
+                }
+                clear-search => {
+                    root.search-query-text = "";
+                    root.search-query("");
                 }
             }
 
@@ -192,6 +203,8 @@ export component AppWindow inherits Window {
                 genres: root.discover-genres;
                 current-page <=> root.discover-current-page;
                 total-pages <=> root.discover-total-pages;
+                is-loading <=> root.discover-is-loading;
+                search-query: root.search-query-text;
                 genre-selected(slug) => { root.filter-genre(slug); }
                 type-selected(t) => { root.filter-type(t); }
                 movie-selected(slug) => { root.select-movie(slug); }
@@ -210,6 +223,7 @@ export component AppWindow inherits Window {
                 actors: root.detail-actors;
                 episodes: root.detail-episodes;
                 keywords: root.detail-keywords;
+                is-loading <=> root.detail-is-loading;
                 back-clicked => { root.active-page = "Home"; }
                 play-episode(ep) => {
                     root.play-episode(ep);
@@ -229,6 +243,7 @@ export component AppWindow inherits Window {
                 episodes: root.current-episodes;
                 window-height: root.height;
                 is-playing <=> root.is-playing;
+                is-buffering <=> root.player-is-buffering;
                 theater-mode <=> root.theater-mode;
                 progress-seconds <=> root.player-progress-seconds;
                 duration-seconds <=> root.player-duration-seconds;

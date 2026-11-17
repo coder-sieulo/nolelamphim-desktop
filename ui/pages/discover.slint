@@ -9,6 +9,8 @@ export component DiscoverPage inherits Flickable {
     in-out property <string> selected-type: "all";
     in property <int> current-page: 1;
     in property <int> total-pages: 10;
+    in property <bool> is-loading: false;
+    in property <string> search-query: "";
 
     callback genre-selected(string);
     callback type-selected(string);
@@ -159,34 +161,124 @@ export component DiscoverPage inherits Flickable {
             }
         }
 
-        // Movies Grid
-        if root.movies.length == 0 : Rectangle {
-            height: 220px;
+        // Loading State View
+        if root.is-loading : Rectangle {
+            height: 320px;
+            background: #ffffff04;
+            border-radius: Theme.radius-lg;
+            border-width: 1px;
+            border-color: #ffffff0d;
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 16px;
+
+                // Pulsing Cinema Badge
+                Rectangle {
+                    width: 60px;
+                    height: 60px;
+                    border-radius: 30px;
+                    background: @linear-gradient(135deg, Theme.primary.with-alpha(0.25) 0%, Theme.primary.with-alpha(0.06) 100%);
+                    border-width: 2px;
+                    border-color: Theme.primary;
+
+                    Text {
+                        text: "🎬";
+                        font-size: 24px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                VerticalLayout {
+                    spacing: 6px;
+                    alignment: center;
+
+                    Text {
+                        text: root.search-query != "" ? ("Đang tìm kiếm: \"" + root.search-query + "\"...") : "Đang tải danh sách phim...";
+                        color: Theme.text-primary;
+                        font-size: 16px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                    }
+
+                    Text {
+                        text: "Đang truy xuất dữ liệu từ máy chủ và đồng bộ luồng phát...";
+                        color: Theme.text-muted;
+                        font-size: 12px;
+                        horizontal-alignment: center;
+                    }
+                }
+
+                // Visual Progress Pulse Bar
+                Rectangle {
+                    width: 180px;
+                    height: 4px;
+                    border-radius: 2px;
+                    background: #ffffff14;
+
+                    Rectangle {
+                        x: 0;
+                        width: 72px;
+                        height: 4px;
+                        border-radius: 2px;
+                        background: @linear-gradient(90deg, Theme.primary-light 0%, Theme.primary 100%);
+                    }
+                }
+            }
+        }
+
+        // Empty State (When not loading and 0 movies found)
+        if !root.is-loading && root.movies.length == 0 : Rectangle {
+            height: 260px;
+            background: #ffffff03;
+            border-radius: Theme.radius-lg;
+            border-width: 1px;
+            border-color: #ffffff0a;
+
             VerticalLayout {
                 alignment: center;
                 spacing: 12px;
-                Text { text: "🔍"; font-size: 32px; horizontal-alignment: center; }
+
+                Text { text: "🔍"; font-size: 38px; horizontal-alignment: center; }
+
                 Text {
-                    text: "No movies found. Try selecting another genre or keyword.";
+                    text: root.search-query != ""
+                        ? ("Không tìm thấy phim phù hợp cho từ khóa \"" + root.search-query + "\"")
+                        : "Không có phim nào trong danh mục này";
+                    color: Theme.text-primary;
+                    font-size: 16px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: root.search-query != ""
+                        ? "Gợi ý: Thử tìm theo tên không dấu, tên tiếng Anh, hoặc bấm chọn thể loại bên trên."
+                        : "Vui lòng chọn danh mục hoặc thể loại khác từ danh sách phía trên.";
                     color: Theme.text-muted;
-                    font-size: 13px;
+                    font-size: 12px;
                     horizontal-alignment: center;
                 }
             }
         }
 
-        if root.movies.length > 0 : Rectangle {
-            property <int> cols: 5;
-            property <length> item-w: 160px;
-            property <length> item-h: 275px;
+        // Responsive Auto-Layout Movies Grid
+        if !root.is-loading && root.movies.length > 0 : Rectangle {
             property <length> gap-x: 16px;
             property <length> gap-y: 20px;
+            property <length> min-item-w: 150px;
+            property <int> cols: Math.max(2, Math.floor((self.width + gap-x) / (min-item-w + gap-x)));
+            property <length> item-w: (self.width - (cols - 1) * gap-x) / cols;
+            property <length> item-h: item-w * 1.42 + 48px;
 
             height: Math.ceil(root.movies.length / cols) * (item-h + gap-y);
 
             for item[idx] in root.movies : MovieCard {
                 x: (idx - Math.floor(idx / cols) * cols) * (item-w + gap-x);
                 y: Math.floor(idx / cols) * (item-h + gap-y);
+                width: item-w;
+                height: item-h;
                 item: item;
                 clicked => { root.movie-selected(item.slug); }
                 play-clicked => { root.play-movie(item.slug); }

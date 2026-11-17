@@ -14,6 +14,7 @@ export component PlayerPage inherits Flickable {
     in-out property <int> volume-level: 85;
     in-out property <string> active-server: "Server VIP #1";
     in-out property <bool> theater-mode: false;
+    in-out property <bool> is-buffering: false;
     in property <length> window-height: 850px;
 
     callback back-clicked();
@@ -275,6 +276,51 @@ export component PlayerPage inherits Flickable {
                     clicked => {
                         root.is-playing = !root.is-playing;
                         root.toggle-play();
+                    }
+                }
+            }
+
+            // Buffering Loading State HUD
+            if root.is-buffering : Rectangle {
+                x: 0;
+                y: 0;
+                width: 100%;
+                height: 100%;
+                background: #000000bb;
+
+                VerticalLayout {
+                    alignment: center;
+                    spacing: 12px;
+
+                    Rectangle {
+                        width: 54px;
+                        height: 54px;
+                        border-radius: 27px;
+                        background: Theme.primary.with-alpha(0.25);
+                        border-width: 2px;
+                        border-color: Theme.primary;
+
+                        Text {
+                            text: "⏳";
+                            font-size: 24px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Text {
+                        text: "Đang kết nối & tải luồng phát video...";
+                        color: Theme.text-primary;
+                        font-size: 15px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                    }
+
+                    Text {
+                        text: "Đang phân tích HLS stream và nạp vào bộ giải mã video...";
+                        color: Theme.text-muted;
+                        font-size: 11px;
+                        horizontal-alignment: center;
                     }
                 }
             }

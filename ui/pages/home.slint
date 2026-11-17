@@ -78,6 +78,7 @@ export component HomePage inherits Flickable {
                 alignment: start;
 
                 for item in root.trending-movies : MovieCard {
+                    horizontal-stretch: 1;
                     item: item;
                     clicked => { root.movie-selected(item.slug); }
                     play-clicked => { root.play-movie(item.slug); }
@@ -189,6 +190,7 @@ export component HomePage inherits Flickable {
                 alignment: start;
 
                 for item in root.mood-movies : MovieCard {
+                    horizontal-stretch: 1;
                     item: item;
                     clicked => { root.movie-selected(item.slug); }
                     play-clicked => { root.play-movie(item.slug); }
