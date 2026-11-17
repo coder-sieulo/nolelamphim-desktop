@@ -25,7 +25,7 @@ export component LibraryPage inherits Flickable {
 
             Text {
                 text: "YOUR PERSONAL CINEMA";
-                color: Theme.primary-light;
+                color: #ffffff;
                 font-size: 10px;
                 font-weight: 700;
                 letter-spacing: 2.5px;
@@ -59,7 +59,7 @@ export component LibraryPage inherits Flickable {
                 HorizontalLayout {
                     padding-left: 16px;
                     padding-right: 16px;
-                    Text { text: "♥ Phim Yêu Thích (" + root.saved-movies.length + ")"; font-size: 12px; font-weight: 600; color: root.active-tab == "saved" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                    Text { text: "♥ Phim Yêu Thích (" + root.saved-movies.length + ")"; font-size: 12px; font-weight: 600; color: #ffffff; vertical-alignment: center; }
                 }
                 TouchArea { clicked => { root.active-tab = "saved"; root.tab-changed("saved"); } }
             }
@@ -74,7 +74,7 @@ export component LibraryPage inherits Flickable {
                 HorizontalLayout {
                     padding-left: 16px;
                     padding-right: 16px;
-                    Text { text: "🕒 Lịch Sử Xem (" + root.history-movies.length + ")"; font-size: 12px; font-weight: 600; color: root.active-tab == "history" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                    Text { text: "🕒 Lịch Sử Xem (" + root.history-movies.length + ")"; font-size: 12px; font-weight: 600; color: #ffffff; vertical-alignment: center; }
                 }
                 TouchArea { clicked => { root.active-tab = "history"; root.tab-changed("history"); } }
             }
@@ -97,7 +97,8 @@ export component LibraryPage inherits Flickable {
                 }
                 Text {
                     text: "Click the heart button on any movie in Home or Discover to save it here.";
-                    color: Theme.text-muted;
+                    color: #ffffff;
+                    opacity: 0.8;
                     font-size: 12px;
                     horizontal-alignment: center;
                 }

@@ -34,7 +34,7 @@ export component DiscoverPage inherits Flickable {
 
             Text {
                 text: root.search-query != "" ? "KẾT QUẢ TÌM KIẾM" : "YOUR NEXT FAVORITE STORY";
-                color: Theme.primary-light;
+                color: #ffffff;
                 font-size: 10px;
                 font-weight: 700;
                 letter-spacing: 2.5px;
@@ -66,7 +66,7 @@ export component DiscoverPage inherits Flickable {
 
                         Text {
                             text: "✕ Xóa bộ lọc tìm kiếm";
-                            color: Theme.text-secondary;
+                            color: #ffffff;
                             font-size: 11px;
                             font-weight: 600;
                             vertical-alignment: center;
@@ -104,7 +104,7 @@ export component DiscoverPage inherits Flickable {
                 HorizontalLayout {
                     padding-left: 16px;
                     padding-right: 16px;
-                    Text { text: "Tất cả"; font-size: 12px; font-weight: 600; color: root.selected-type == "all" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                    Text { text: "Tất cả"; font-size: 12px; font-weight: 600; color: #ffffff; vertical-alignment: center; }
                 }
                 TouchArea { clicked => { root.selected-type = "all"; root.type-selected("all"); } }
             }
@@ -119,7 +119,7 @@ export component DiscoverPage inherits Flickable {
                 HorizontalLayout {
                     padding-left: 16px;
                     padding-right: 16px;
-                    Text { text: "Phim Lẻ"; font-size: 12px; font-weight: 600; color: root.selected-type == "phim-le" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                    Text { text: "Phim Lẻ"; font-size: 12px; font-weight: 600; color: #ffffff; vertical-alignment: center; }
                 }
                 TouchArea { clicked => { root.selected-type = "phim-le"; root.type-selected("phim-le"); } }
             }
@@ -134,7 +134,7 @@ export component DiscoverPage inherits Flickable {
                 HorizontalLayout {
                     padding-left: 16px;
                     padding-right: 16px;
-                    Text { text: "Phim Bộ"; font-size: 12px; font-weight: 600; color: root.selected-type == "phim-bo" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                    Text { text: "Phim Bộ"; font-size: 12px; font-weight: 600; color: #ffffff; vertical-alignment: center; }
                 }
                 TouchArea { clicked => { root.selected-type = "phim-bo"; root.type-selected("phim-bo"); } }
             }
@@ -149,7 +149,7 @@ export component DiscoverPage inherits Flickable {
                 HorizontalLayout {
                     padding-left: 16px;
                     padding-right: 16px;
-                    Text { text: "Hoạt Hình"; font-size: 12px; font-weight: 600; color: root.selected-type == "hoat-hinh" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                    Text { text: "Hoạt Hình"; font-size: 12px; font-weight: 600; color: #ffffff; vertical-alignment: center; }
                 }
                 TouchArea { clicked => { root.selected-type = "hoat-hinh"; root.type-selected("hoat-hinh"); } }
             }
@@ -164,7 +164,7 @@ export component DiscoverPage inherits Flickable {
                 HorizontalLayout {
                     padding-left: 16px;
                     padding-right: 16px;
-                    Text { text: "Chiếu Rạp"; font-size: 12px; font-weight: 600; color: root.selected-type == "phim-chieu-rap" ? Theme.primary-light : Theme.text-secondary; vertical-alignment: center; }
+                    Text { text: "Chiếu Rạp"; font-size: 12px; font-weight: 600; color: #ffffff; vertical-alignment: center; }
                 }
                 TouchArea { clicked => { root.selected-type = "phim-chieu-rap"; root.type-selected("phim-chieu-rap"); } }
             }
@@ -186,7 +186,7 @@ export component DiscoverPage inherits Flickable {
                     padding-right: 14px;
                     Text {
                         text: g.name;
-                        color: g.active ? Theme.primary-light : Theme.text-secondary;
+                        color: #ffffff;
                         font-size: 11px;
                         font-weight: 600;
                         vertical-alignment: center;
@@ -341,7 +341,7 @@ export component DiscoverPage inherits Flickable {
 
                 Text {
                     text: "← Prev";
-                    color: Theme.text-secondary;
+                    color: #ffffff;
                     font-size: 11px;
                     font-weight: 600;
                     horizontal-alignment: center;
@@ -359,7 +359,7 @@ export component DiscoverPage inherits Flickable {
 
             Text {
                 text: "Page " + root.current-page + " of " + root.total-pages;
-                color: Theme.text-muted;
+                color: #ffffff;
                 font-size: 12px;
                 font-weight: 600;
                 vertical-alignment: center;
@@ -376,7 +376,7 @@ export component DiscoverPage inherits Flickable {
 
                 Text {
                     text: "Next →";
-                    color: Theme.text-secondary;
+                    color: #ffffff;
                     font-size: 11px;
                     font-weight: 600;
                     horizontal-alignment: center;
