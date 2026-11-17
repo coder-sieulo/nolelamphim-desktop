@@ -119,4 +119,82 @@ impl ImageCacheService {
 
         Ok(target_path)
     }
+
+    pub async fn fetch_and_optimize(&self, url: &str, max_w: u32, max_h: u32) -> Result<PathBuf, String> {
+        if !self.enabled || url.is_empty() {
+            return Err("Image caching disabled or empty URL".to_string());
+        }
+
+        let target_path = self.cache_dir.join(self.url_to_filename(url));
+        let mut jpg_path = target_path.clone();
+        jpg_path.set_extension("jpg");
+
+        // 1. If optimized jpg already exists, return immediately
+        if jpg_path.exists() {
+            return Ok(jpg_path);
+        }
+
+        // 2. If an existing raw/webp file exists on disk, transcode it on blocking thread
+        if target_path.exists() {
+            let p = target_path.clone();
+            let out_p = jpg_path.clone();
+            let res = tokio::task::spawn_blocking(move || -> Result<PathBuf, String> {
+                if let Ok(dyn_img) = image::open(&p) {
+                    let resized = if dyn_img.width() > max_w || dyn_img.height() > max_h {
+                        dyn_img.thumbnail(max_w, max_h)
+                    } else {
+                        dyn_img
+                    };
+                    if resized.save_with_format(&out_p, image::ImageFormat::Jpeg).is_ok() {
+                        let _ = fs::remove_file(&p);
+                        return Ok(out_p);
+                    }
+                }
+                Ok(p)
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+
+            return res;
+        }
+
+        // 3. Otherwise fetch from network
+        tracing::debug!("Downloading image to cache: {}", url);
+        let resp = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| format!("Network error downloading image: {}", e))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("HTTP error {}: {}", resp.status(), url));
+        }
+
+        let bytes = resp
+            .bytes()
+            .await
+            .map_err(|e| format!("Failed to read image bytes: {}", e))?;
+
+        let _ = fs::create_dir_all(&self.cache_dir);
+
+        let out_p = jpg_path.clone();
+        let fallback_p = target_path.clone();
+        tokio::task::spawn_blocking(move || {
+            if let Ok(dyn_img) = image::load_from_memory(&bytes) {
+                let resized = if dyn_img.width() > max_w || dyn_img.height() > max_h {
+                    dyn_img.thumbnail(max_w, max_h)
+                } else {
+                    dyn_img
+                };
+                if resized.save_with_format(&out_p, image::ImageFormat::Jpeg).is_ok() {
+                    return Ok(out_p);
+                }
+            }
+            fs::write(&fallback_p, &bytes).map_err(|e| e.to_string())?;
+            Ok(fallback_p)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
 }
