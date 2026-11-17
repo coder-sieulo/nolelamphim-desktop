@@ -74,6 +74,8 @@ export component AppWindow inherits Window {
     callback cycle-speed();
     callback open-fullscreen();
     callback next-episode();
+    callback toggle-play();
+    callback change-volume(int);
 
     HorizontalLayout {
         // Left Column: Navigation Sidebar (224px)
@@ -197,7 +199,14 @@ export component AppWindow inherits Window {
                 volume-level <=> root.player-volume;
                 active-server <=> root.player-server;
                 back-clicked => { root.active-page = "Detail"; }
-                toggle-play => { root.is-playing = !root.is-playing; }
+                toggle-play => {
+                    root.is-playing = !root.is-playing;
+                    root.toggle-play();
+                }
+                change-volume(vol) => {
+                    root.player-volume = vol;
+                    root.change-volume(vol);
+                }
                 skip-10(fwd) => { root.skip-10(fwd); }
                 seek-percent(p) => { root.seek-percent(p); }
                 cycle-speed => { root.cycle-speed(); }

@@ -9,7 +9,7 @@ readme = "README.md"
 
 [dependencies]
 slint = "~1.9.0"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util", "process"] }
 futures = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -30,7 +30,7 @@ copyright = "2026 viennn"
 extended-description = """\
 Nô Lệ Làm Phim Desktop is a modern, high-performance desktop movie discovery \
 application for streaming Vietnamese and international movies, built with Rust and Slint."""
-depends = "$auto, libfontconfig1, libxkbcommon0, libxkbcommon-x11-0"
+depends = "$auto, libfontconfig1, libxkbcommon0, libxkbcommon-x11-0, mpv"
 section = "video"
 priority = "optional"
 assets = [

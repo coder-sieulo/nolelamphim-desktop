@@ -25,6 +25,7 @@ export component PlayerPage inherits Flickable {
     callback open-fullscreen();
     callback toggle-save(string);
     callback next-episode();
+    callback change-volume(int);
 
     viewport-width: self.width;
 
@@ -277,6 +278,33 @@ export component PlayerPage inherits Flickable {
                 }
             }
 
+            // Cinema Engine Active Status HUD Banner
+            Rectangle {
+                x: (parent.width - 440px) / 2;
+                y: (parent.height - 76px) / 2 + 56px;
+                width: 440px;
+                height: 28px;
+                border-radius: 14px;
+                background: #000000bb;
+                border-width: 1px;
+                border-color: root.is-playing ? #22c55e66 : #ffffff22;
+
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 8px;
+                    padding-left: 12px;
+                    padding-right: 12px;
+
+                    Text {
+                        text: root.is-playing ? "🟢 Trình phát Native Media Player đang phát trực tiếp" : "▶ Nhấn để tiếp tục phát hoặc chọn tập bên dưới";
+                        color: root.is-playing ? #4ade80 : #e5e7eb;
+                        font-size: 11px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
             // Bottom HUD: Interactive Timeline & Cinema Player Controls
             VerticalLayout {
                 y: parent.height - 110px;
@@ -516,6 +544,7 @@ export component PlayerPage inherits Flickable {
                             vol-touch := TouchArea {
                                 clicked => {
                                     root.volume-level = (root.volume-level >= 100) ? 0 : (root.volume-level + 20);
+                                    root.change-volume(root.volume-level);
                                 }
                             }
                         }

@@ -9,7 +9,7 @@ use slint::{ComponentHandle, Model, ModelRc, SharedString, VecModel};
 
 use config::AppConfig;
 use models::{format_cinema_duration, parse_duration_seconds, to_slint_episode_item, to_slint_movie_item, to_slint_person_item};
-use services::{ImageCacheService, MovieAggregatorService, StorageService};
+use services::{ImageCacheService, MediaPlayerService, MovieAggregatorService, StorageService};
 
 slint::include_modules!();
 
@@ -166,6 +166,7 @@ fn trigger_play_movie(
     window_weak: slint::Weak<AppWindow>,
     agg: Arc<MovieAggregatorService>,
     stor: Arc<StorageService>,
+    player: Arc<MediaPlayerService>,
 ) {
     let win_weak_ui = window_weak.clone();
     let slug_ui = slug_str.clone();
@@ -212,16 +213,18 @@ fn trigger_play_movie(
         }
     });
 
+    let win_weak_player = window_weak.clone();
     tokio::spawn(async move {
         if let Ok(detail) = agg.get_movie_detail(&slug_str).await {
             let episodes: Vec<EpisodeItem> = detail.episodes.iter().map(to_slint_episode_item).collect();
             let first_ep = episodes.first().cloned();
+            let first_ep_for_player = first_ep.clone();
             let duration_secs = parse_duration_seconds(&detail.summary.time);
             let time_display = format_cinema_duration(0, duration_secs as i64);
 
             let updated_hist = stor.add_to_history(detail.summary.clone(), 25).await;
             let win_weak_hist = window_weak.clone();
-            let summary_clone = detail.summary;
+            let summary_clone = detail.summary.clone();
             let _ = slint::invoke_from_event_loop(move || {
                 if let Some(win) = win_weak_hist.upgrade() {
                     let slint_hist: Vec<MovieItem> = updated_hist.iter().map(to_slint_movie_item).collect();
@@ -231,10 +234,10 @@ fn trigger_play_movie(
                         win.set_current_episodes(ModelRc::new(VecModel::from(episodes.clone())));
                         win.set_detail_episodes(ModelRc::new(VecModel::from(episodes)));
                     }
-                    if let Some(ep) = first_ep {
+                    if let Some(ref ep) = first_ep {
                         win.set_current_episode(ep.clone());
                         if !ep.server_name.is_empty() {
-                            win.set_player_server(ep.server_name);
+                            win.set_player_server(ep.server_name.clone());
                         }
                     }
                     win.set_player_duration_seconds(duration_secs);
@@ -245,6 +248,19 @@ fn trigger_play_movie(
                     win.set_current_playing_movie(movie_item);
                 }
             });
+
+            // Automatically launch real stream in Cinema Media Player!
+            if let Some(ep) = first_ep_for_player {
+                let stream_url = if !ep.link_m3u8.is_empty() {
+                    ep.link_m3u8.to_string()
+                } else {
+                    ep.link_embed.to_string()
+                };
+                if !stream_url.is_empty() {
+                    tracing::info!("Auto-launching real stream in Cinema Media Player: {}", stream_url);
+                    let _ = player.play(&stream_url, &detail.summary.title, &ep.name, win_weak_player).await;
+                }
+            }
         }
     });
 }
@@ -330,6 +346,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let aggregator = Arc::new(MovieAggregatorService::new(&config));
     let storage = Arc::new(StorageService::new());
     let image_cache = Arc::new(ImageCacheService::new(config.enable_image_cache));
+    let media_player = Arc::new(MediaPlayerService::new());
 
     let main_window = AppWindow::new()?;
 
@@ -914,10 +931,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
         let stor = storage.clone();
+        let pl = media_player.clone();
         main_window.on_play_movie(move |slug| {
             let slug_str = slug.to_string();
             tracing::info!("Playing movie: {}", slug_str);
-            trigger_play_movie(slug_str, window_weak.clone(), agg.clone(), stor.clone());
+            trigger_play_movie(slug_str, window_weak.clone(), agg.clone(), stor.clone(), pl.clone());
         });
     }
 
@@ -926,6 +944,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
         let stor = storage.clone();
+        let pl = media_player.clone();
         main_window.on_prev_movie(move | | {
             if let Some(win) = window_weak.upgrade() {
                 let current_slug = win.get_current_playing_movie().slug.to_string();
@@ -946,7 +965,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let slug = m.slug.to_string();
                         win.set_current_playing_movie(m);
                         win.set_is_playing(true);
-                        trigger_play_movie(slug, window_weak.clone(), agg.clone(), stor.clone());
+                        trigger_play_movie(slug, window_weak.clone(), agg.clone(), stor.clone(), pl.clone());
                     }
                 }
             }
@@ -958,6 +977,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let window_weak = main_window.as_weak();
         let agg = aggregator.clone();
         let stor = storage.clone();
+        let pl = media_player.clone();
         main_window.on_next_movie(move | | {
             if let Some(win) = window_weak.upgrade() {
                 let current_slug = win.get_current_playing_movie().slug.to_string();
@@ -978,25 +998,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let slug = m.slug.to_string();
                         win.set_current_playing_movie(m);
                         win.set_is_playing(true);
-                        trigger_play_movie(slug, window_weak.clone(), agg.clone(), stor.clone());
+                        trigger_play_movie(slug, window_weak.clone(), agg.clone(), stor.clone(), pl.clone());
                     }
                 }
             }
         });
     }
 
-    // Play Episode Callback -> Open Stream URL or Web Embed Player
+    // Play/Pause Toggle -> Control Native Cinema Media Player
     {
         let window_weak = main_window.as_weak();
+        let player = media_player.clone();
+        main_window.on_toggle_play(move || {
+            if let Some(win) = window_weak.upgrade() {
+                let playing = win.get_is_playing();
+                tracing::info!("Cinema player play state toggled: {}", playing);
+                let p = player.clone();
+                tokio::spawn(async move {
+                    let _ = p.toggle_pause().await;
+                });
+            }
+        });
+    }
+
+    // Change Volume
+    {
+        let player = media_player.clone();
+        main_window.on_change_volume(move |vol| {
+            let p = player.clone();
+            tokio::spawn(async move {
+                let _ = p.set_volume(vol).await;
+            });
+        });
+    }
+
+    // Play Episode Callback -> Launch Stream via Cinema Media Player
+    {
+        let window_weak = main_window.as_weak();
+        let player = media_player.clone();
         main_window.on_play_episode(move |ep| {
-            let target_url = if !ep.link_embed.is_empty() {
-                ep.link_embed.to_string()
-            } else {
+            let target_url = if !ep.link_m3u8.is_empty() {
                 ep.link_m3u8.to_string()
+            } else {
+                ep.link_embed.to_string()
             };
             tracing::info!("Playing episode '{}' on server '{}': {}", ep.name, ep.server_name, target_url);
 
-            if let Some(win) = window_weak.upgrade() {
+            let movie_title = if let Some(win) = window_weak.upgrade() {
                 win.set_current_episode(ep.clone());
                 win.set_is_playing(true);
                 win.set_active_page(SharedString::from("Player"));
@@ -1007,6 +1055,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if !ep.server_name.is_empty() {
                     win.set_player_server(ep.server_name.clone());
                 }
+                win.get_current_playing_movie().title.to_string()
+            } else {
+                String::new()
+            };
+
+            if !target_url.is_empty() {
+                let p = player.clone();
+                let ep_name = ep.name.to_string();
+                let ww = window_weak.clone();
+                tokio::spawn(async move {
+                    let _ = p.play(&target_url, &movie_title, &ep_name, ww).await;
+                });
             }
         });
     }
@@ -1014,6 +1074,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Skip 10 Seconds Forward / Backward
     {
         let window_weak = main_window.as_weak();
+        let player = media_player.clone();
         main_window.on_skip_10(move |forward| {
             if let Some(win) = window_weak.upgrade() {
                 let current_sec = win.get_player_progress_seconds();
@@ -1027,7 +1088,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 win.set_player_progress_seconds(new_sec);
                 win.set_player_progress_percent(percent);
                 win.set_player_time_display(SharedString::from(format_cinema_duration(new_sec as i64, duration as i64)));
-                tracing::info!("Cinema player skip 10s: forward={}, new_sec={}/{}", forward, new_sec, duration);
+                let p = player.clone();
+                let secs = if forward { 10.0 } else { -10.0 };
+                tokio::spawn(async move {
+                    let _ = p.skip_seconds(secs).await;
+                });
             }
         });
     }
@@ -1035,6 +1100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Seek to Percentage (0..100)
     {
         let window_weak = main_window.as_weak();
+        let player = media_player.clone();
         main_window.on_seek_percent(move |p| {
             if let Some(win) = window_weak.upgrade() {
                 let clamped = p.clamp(0, 100);
@@ -1043,7 +1109,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 win.set_player_progress_percent(clamped);
                 win.set_player_progress_seconds(new_sec);
                 win.set_player_time_display(SharedString::from(format_cinema_duration(new_sec as i64, duration as i64)));
-                tracing::info!("Cinema player seek to {}%: {}s/{}s", clamped, new_sec, duration);
+                let pl = player.clone();
+                tokio::spawn(async move {
+                    let _ = pl.seek_percent(clamped).await;
+                });
             }
         });
     }
@@ -1051,18 +1120,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Cycle Playback Speed (1.0x -> 1.25x -> 1.5x -> 2.0x -> 0.75x -> 1.0x)
     {
         let window_weak = main_window.as_weak();
+        let player = media_player.clone();
         main_window.on_cycle_speed(move || {
             if let Some(win) = window_weak.upgrade() {
                 let current_speed = win.get_player_speed().to_string();
-                let next_speed = match current_speed.as_str() {
-                    "1.0x" => "1.25x",
-                    "1.25x" => "1.5x",
-                    "1.5x" => "2.0x",
-                    "2.0x" => "0.75x",
-                    _ => "1.0x",
+                let (next_speed, speed_val) = match current_speed.as_str() {
+                    "1.0x" => ("1.25x", 1.25),
+                    "1.25x" => ("1.5x", 1.5),
+                    "1.5x" => ("2.0x", 2.0),
+                    "2.0x" => ("0.75x", 0.75),
+                    _ => ("1.0x", 1.0),
                 };
                 win.set_player_speed(SharedString::from(next_speed));
-                tracing::info!("Cinema player playback speed changed to: {}", next_speed);
+                let pl = player.clone();
+                tokio::spawn(async move {
+                    let _ = pl.set_speed(speed_val).await;
+                });
             }
         });
     }
@@ -1070,10 +1143,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Open Cinema Theater Mode (100% In-App)
     {
         let window_weak = main_window.as_weak();
+        let player = media_player.clone();
         main_window.on_open_fullscreen(move || {
             if let Some(win) = window_weak.upgrade() {
                 let is_theater = win.get_theater_mode();
                 tracing::info!("Cinema player theater mode toggled: {}", !is_theater);
+                let pl = player.clone();
+                tokio::spawn(async move {
+                    let _ = pl.toggle_fullscreen().await;
+                });
             }
         });
     }
@@ -1081,6 +1159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Next Episode Callback
     {
         let window_weak = main_window.as_weak();
+        let player = media_player.clone();
         main_window.on_next_episode(move || {
             if let Some(win) = window_weak.upgrade() {
                 let current_ep = win.get_current_episode();
@@ -1108,6 +1187,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         if !next_ep.server_name.is_empty() {
                             win.set_player_server(next_ep.server_name.clone());
+                        }
+
+                        let target_url = if !next_ep.link_m3u8.is_empty() {
+                            next_ep.link_m3u8.to_string()
+                        } else {
+                            next_ep.link_embed.to_string()
+                        };
+                        let movie_title = win.get_current_playing_movie().title.to_string();
+                        if !target_url.is_empty() {
+                            let pl = player.clone();
+                            let ep_name = next_ep.name.to_string();
+                            let ww = window_weak.clone();
+                            tokio::spawn(async move {
+                                let _ = pl.play(&target_url, &movie_title, &ep_name, ww).await;
+                            });
                         }
                     }
                 }
