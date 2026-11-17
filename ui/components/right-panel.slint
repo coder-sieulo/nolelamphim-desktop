@@ -53,7 +53,7 @@ export component RightPanel inherits Rectangle {
                         Text { text: "🎬"; font-size: 13px; vertical-alignment: center; }
                         Text {
                             text: "ĐANG PHÁT";
-                            color: Theme.primary-light;
+                            color: #ffffff;
                             font-size: 10px;
                             font-weight: 800;
                             letter-spacing: 1.5px;
@@ -70,7 +70,7 @@ export component RightPanel inherits Rectangle {
 
                         Text {
                             text: root.current-playing.is-saved ? "♥" : "♡";
-                            color: root.current-playing.is-saved ? Theme.primary : Theme.text-muted;
+                            color: #ffffff;
                             font-size: 15px;
                             horizontal-alignment: center;
                             vertical-alignment: center;
@@ -122,7 +122,7 @@ export component RightPanel inherits Rectangle {
                         background: Theme.primary;
                         HorizontalLayout {
                             padding-left: 6px; padding-right: 6px;
-                            Text { text: "1080p FHD"; color: Theme.text-dark; font-size: 8px; font-weight: 800; vertical-alignment: center; }
+                            Text { text: "1080p FHD"; color: #ffffff; font-size: 8px; font-weight: 800; vertical-alignment: center; }
                         }
                     }
 
@@ -160,7 +160,7 @@ export component RightPanel inherits Rectangle {
 
                         Text {
                             text: root.is-playing ? "⏸" : "▶";
-                            color: Theme.primary-light;
+                            color: #ffffff;
                             font-size: 14px;
                             font-weight: 800;
                             horizontal-alignment: center;
@@ -194,8 +194,8 @@ export component RightPanel inherits Rectangle {
 
                     HorizontalLayout {
                         alignment: space-between;
-                        Text { text: root.cinema-time; color: #a1a1aa; font-size: 9px; font-weight: 600; }
-                        Text { text: root.cinema-progress-percent + "%"; color: Theme.primary-light; font-size: 9px; font-weight: 700; }
+                        Text { text: root.cinema-time; color: #ffffff; font-size: 9px; font-weight: 600; opacity: 0.85; }
+                        Text { text: root.cinema-progress-percent + "%"; color: #ffffff; font-size: 9px; font-weight: 700; }
                     }
 
                     Rectangle {
@@ -241,7 +241,7 @@ export component RightPanel inherits Rectangle {
 
                         Text {
                             text: root.is-playing ? "⏸" : "▶";
-                            color: Theme.text-dark;
+                            color: #ffffff;
                             font-size: 13px;
                             font-weight: 800;
                             horizontal-alignment: center;
@@ -283,7 +283,7 @@ export component RightPanel inherits Rectangle {
                         Text {
                             text: "⛶";
                             font-size: 13px;
-                            color: Theme.primary-light;
+                            color: #ffffff;
                             font-weight: 800;
                             horizontal-alignment: center;
                             vertical-alignment: center;
@@ -306,7 +306,7 @@ export component RightPanel inherits Rectangle {
                     HorizontalLayout {
                         alignment: center;
                         spacing: 6px;
-                        Text { text: "🎬 Vào Phòng Chiếu →"; color: Theme.primary-light; font-size: 10px; font-weight: 700; vertical-alignment: center; }
+                        Text { text: "🎬 Vào Phòng Chiếu →"; color: #ffffff; font-size: 10px; font-weight: 700; vertical-alignment: center; }
                     }
 
                     enter-touch := TouchArea {
@@ -421,7 +421,7 @@ export component RightPanel inherits Rectangle {
 
                             Text {
                                 text: item.is-saved ? "✓" : "+";
-                                color: item.is-saved ? Theme.primary-light : Theme.text-primary;
+                                color: #ffffff;
                                 font-size: 11px;
                                 font-weight: 700;
                                 horizontal-alignment: center;

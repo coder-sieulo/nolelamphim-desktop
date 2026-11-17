@@ -69,7 +69,7 @@ export component HeroBanner inherits Rectangle {
 
                     Text {
                         text: "🔥 TRENDING #1 THIS WEEK";
-                        color: Theme.primary-light;
+                        color: #ffffff;
                         font-size: 10px;
                         font-weight: 700;
                         vertical-alignment: center;
@@ -81,7 +81,7 @@ export component HeroBanner inherits Rectangle {
         // Eyebrow
         Text {
             text: featured.origin_title != "" ? featured.origin_title : "THE CINEMATIC EVENT";
-            color: #e9b58e;
+            color: #ffffff;
             font-size: 10px;
             font-weight: 600;
             letter-spacing: 2px;
@@ -90,7 +90,7 @@ export component HeroBanner inherits Rectangle {
         // Main Title
         Text {
             text: featured.title != "" ? featured.title : "DUNE: PART TWO";
-            color: Theme.text-primary;
+            color: #ffffff;
             font-size: 38px;
             font-weight: 800;
             overflow: elide;
@@ -99,7 +99,7 @@ export component HeroBanner inherits Rectangle {
         // Description / Tagline
         Text {
             text: featured.genre != "" ? featured.genre + " · " + featured.year + " · Rating ★ " + featured.rating : "Long live the fighters.";
-            color: #d1d5db;
+            color: #ffffff;
             font-size: 13px;
         }
 
@@ -124,7 +124,7 @@ export component HeroBanner inherits Rectangle {
 
                     Text {
                         text: "▶  Watch Now";
-                        color: Theme.text-dark;
+                        color: #ffffff;
                         font-size: 12px;
                         font-weight: 700;
                         vertical-alignment: center;
@@ -147,7 +147,7 @@ export component HeroBanner inherits Rectangle {
 
                 Text {
                     text: featured.is_saved ? "♥" : "+";
-                    color: featured.is_saved ? Theme.primary : Theme.text-primary;
+                    color: #ffffff;
                     font-size: 18px;
                     font-weight: 700;
                     horizontal-alignment: center;

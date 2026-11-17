@@ -40,7 +40,7 @@ export component MovieDetailPage inherits Flickable {
                 Text { text: "⏳"; font-size: 13px; vertical-alignment: center; }
                 Text {
                     text: "Đang cập nhật thông tin chi tiết, danh sách tập và diễn viên...";
-                    color: Theme.primary-light;
+                    color: #ffffff;
                     font-size: 12px;
                     font-weight: 600;
                     vertical-alignment: center;
@@ -65,8 +65,8 @@ export component MovieDetailPage inherits Flickable {
                     spacing: 8px;
                     alignment: center;
 
-                    Text { text: "←"; font-size: 14px; color: Theme.text-primary; vertical-alignment: center; }
-                    Text { text: "Quay lại"; font-size: 12px; font-weight: 600; color: Theme.text-primary; vertical-alignment: center; }
+                    Text { text: "←"; font-size: 14px; color: #ffffff; vertical-alignment: center; }
+                    Text { text: "Quay lại"; font-size: 12px; font-weight: 600; color: #ffffff; vertical-alignment: center; }
                 }
 
                 TouchArea {
@@ -141,7 +141,7 @@ export component MovieDetailPage inherits Flickable {
                             background: Theme.primary;
                             HorizontalLayout {
                                 padding-left: 8px; padding-right: 8px;
-                                Text { text: root.movie.quality != "" ? root.movie.quality : "HD"; color: Theme.text-dark; font-size: 10px; font-weight: 800; vertical-alignment: center; }
+                                Text { text: root.movie.quality != "" ? root.movie.quality : "HD"; color: #ffffff; font-size: 10px; font-weight: 800; vertical-alignment: center; }
                             }
                         }
 
@@ -151,7 +151,7 @@ export component MovieDetailPage inherits Flickable {
                             background: #ffffff18;
                             HorizontalLayout {
                                 padding-left: 8px; padding-right: 8px;
-                                Text { text: root.movie.year; color: Theme.text-primary; font-size: 10px; font-weight: 600; vertical-alignment: center; }
+                                Text { text: root.movie.year; color: #ffffff; font-size: 10px; font-weight: 600; vertical-alignment: center; }
                             }
                         }
 
@@ -169,7 +169,7 @@ export component MovieDetailPage inherits Flickable {
                     // Title
                     Text {
                         text: root.movie.title;
-                        color: Theme.text-primary;
+                        color: #ffffff;
                         font-size: 28px;
                         font-weight: 800;
                         overflow: elide;
@@ -178,7 +178,8 @@ export component MovieDetailPage inherits Flickable {
                     // Origin Title
                     Text {
                         text: root.movie.origin_title;
-                        color: #c4c5cc;
+                        color: #ffffff;
+                        opacity: 0.85;
                         font-size: 13px;
                         font-weight: 500;
                     }
@@ -186,7 +187,8 @@ export component MovieDetailPage inherits Flickable {
                     // Director & Genres
                     Text {
                         text: "Đạo diễn: " + root.director + "  |  Thể loại: " + root.movie.genre;
-                        color: Theme.text-muted;
+                        color: #ffffff;
+                        opacity: 0.8;
                         font-size: 11px;
                     }
 
@@ -204,7 +206,7 @@ export component MovieDetailPage inherits Flickable {
                             HorizontalLayout {
                                 padding-left: 18px; padding-right: 18px;
                                 spacing: 8px; alignment: center;
-                                Text { text: "▶  Xem Phim"; color: Theme.text-dark; font-size: 12px; font-weight: 700; vertical-alignment: center; }
+                                Text { text: "▶  Xem Phim"; color: #ffffff; font-size: 12px; font-weight: 700; vertical-alignment: center; }
                             }
 
                             TouchArea {
@@ -227,7 +229,7 @@ export component MovieDetailPage inherits Flickable {
                             HorizontalLayout {
                                 padding-left: 16px; padding-right: 16px;
                                 spacing: 6px; alignment: center;
-                                Text { text: root.movie.is_saved ? "♥ Đã Lưu" : "+ Yêu Thích"; color: Theme.text-primary; font-size: 12px; font-weight: 600; vertical-alignment: center; }
+                                Text { text: root.movie.is_saved ? "♥ Đã Lưu" : "+ Yêu Thích"; color: #ffffff; font-size: 12px; font-weight: 600; vertical-alignment: center; }
                             }
 
                             TouchArea {

@@ -61,7 +61,7 @@ export component MovieCard inherits Rectangle {
                     alignment: center;
                     Text {
                         text: item.rank;
-                        color: Theme.text-dark;
+                        color: #ffffff;
                         font-size: 10px;
                         font-weight: 800;
                         vertical-alignment: center;
@@ -114,12 +114,12 @@ export component MovieCard inherits Rectangle {
                         width: 32px;
                         height: 32px;
                         border-radius: 16px;
-                        background: #ffffffee;
+                        background: Theme.primary;
                         
                         Text {
                             text: "▶";
                             font-size: 12px;
-                            color: Theme.text-dark;
+                            color: #ffffff;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -134,12 +134,12 @@ export component MovieCard inherits Rectangle {
                         width: 32px;
                         height: 32px;
                         border-radius: 16px;
-                        background: item.is_saved ? Theme.primary : #ffffffbb;
+                        background: item.is_saved ? Theme.primary : #ffffff33;
 
                         Text {
                             text: item.is_saved ? "♥" : "♡";
                             font-size: 14px;
-                            color: item.is_saved ? Theme.text-primary : Theme.text-dark;
+                            color: #ffffff;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
