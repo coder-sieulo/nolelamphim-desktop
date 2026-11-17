@@ -1,5 +1,15 @@
+pub mod api;
+pub mod config;
+pub mod models;
+pub mod services;
+
 use std::rc::Rc;
-use slint::{ModelRc, SharedString, VecModel};
+use std::sync::Arc;
+use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+
+use config::AppConfig;
+use models::{to_slint_episode_item, to_slint_movie_item, to_slint_person_item};
+use services::MovieAggregatorService;
 
 slint::include_modules!();
 
@@ -37,9 +47,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     tracing::info!("Starting Nolelamphim Desktop Application...");
 
+    let config = AppConfig::from_env();
+    let aggregator = Arc::new(MovieAggregatorService::new(&config));
+
     let main_window = AppWindow::new()?;
 
-    // Populate Initial Mock Data matching Cinefy Mockup
+    // Populate Initial Fallback Data matching Cinefy Mockup
     let dune = create_sample_movie(
         "1",
         "dune-part-two",
@@ -157,11 +170,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         false,
     );
 
-    // Hero Movie
+    // Initial Views
     main_window.set_hero_movie(dune.clone());
     main_window.set_current_playing_movie(dune.clone());
 
-    // Trending Movies (6 items)
     let trending_vec = vec![
         dune.clone(),
         interstellar.clone(),
@@ -170,9 +182,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         inception.clone(),
         fight_club.clone(),
     ];
-    main_window.set_trending_movies(ModelRc::new(VecModel::from(trending_vec.clone())));
+    main_window.set_trending_movies(ModelRc::new(VecModel::from(trending_vec)));
 
-    // Continue Watching (3 items)
     let continue_vec = vec![
         interstellar.clone(),
         inception.clone(),
@@ -180,7 +191,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
     main_window.set_continue_movies(ModelRc::new(VecModel::from(continue_vec)));
 
-    // Mood Movies
     let mood_vec = vec![
         eeaao.clone(),
         whiplash.clone(),
@@ -191,7 +201,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
     main_window.set_mood_movies(ModelRc::new(VecModel::from(mood_vec)));
 
-    // Discover Movies (All items)
     let all_movies = vec![
         dune.clone(),
         interstellar.clone(),
@@ -203,28 +212,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         whiplash.clone(),
         la_la_land.clone(),
     ];
-    main_window.set_discover_movies(ModelRc::new(VecModel::from(all_movies.clone())));
+    main_window.set_discover_movies(ModelRc::new(VecModel::from(all_movies)));
 
-    // Discover Genres
     let genres = vec![
         GenreFilterItem { name: SharedString::from("Tất cả"), slug: SharedString::from("All"), active: true },
-        GenreFilterItem { name: SharedString::from("Hành Động"), slug: SharedString::from("Action"), active: false },
-        GenreFilterItem { name: SharedString::from("Viễn Tưởng"), slug: SharedString::from("Sci-Fi"), active: false },
-        GenreFilterItem { name: SharedString::from("Chính Kịch"), slug: SharedString::from("Drama"), active: false },
-        GenreFilterItem { name: SharedString::from("Kinh Dị"), slug: SharedString::from("Thriller"), active: false },
-        GenreFilterItem { name: SharedString::from("Hài Hước"), slug: SharedString::from("Comedy"), active: false },
-        GenreFilterItem { name: SharedString::from("Tình Cảm"), slug: SharedString::from("Romance"), active: false },
-        GenreFilterItem { name: SharedString::from("Hoạt Hình"), slug: SharedString::from("Anime"), active: false },
+        GenreFilterItem { name: SharedString::from("Hành Động"), slug: SharedString::from("hanh-dong"), active: false },
+        GenreFilterItem { name: SharedString::from("Viễn Tưởng"), slug: SharedString::from("vien-tuong"), active: false },
+        GenreFilterItem { name: SharedString::from("Chính Kịch"), slug: SharedString::from("chinh-kich"), active: false },
+        GenreFilterItem { name: SharedString::from("Kinh Dị"), slug: SharedString::from("kinh-di"), active: false },
+        GenreFilterItem { name: SharedString::from("Hài Hước"), slug: SharedString::from("hai-huoc"), active: false },
+        GenreFilterItem { name: SharedString::from("Tình Cảm"), slug: SharedString::from("tinh-cam"), active: false },
+        GenreFilterItem { name: SharedString::from("Hoạt Hình"), slug: SharedString::from("hoat-hinh"), active: false },
     ];
     main_window.set_discover_genres(ModelRc::new(VecModel::from(genres)));
 
-    // Library Data
     let saved_vec = vec![dune.clone(), interstellar.clone(), inception.clone()];
     main_window.set_library_saved_movies(ModelRc::new(VecModel::from(saved_vec)));
     let history_vec = vec![interstellar.clone(), the_batman.clone()];
     main_window.set_library_history_movies(ModelRc::new(VecModel::from(history_vec)));
 
-    // Right Panel Suggestions
     let suggestions_vec = vec![eeaao.clone(), whiplash.clone(), fight_club.clone(), la_la_land.clone()];
     main_window.set_right_panel_suggestions(ModelRc::new(VecModel::from(suggestions_vec)));
 
@@ -259,22 +265,180 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let keywords_model = Rc::new(VecModel::from(keywords));
     main_window.set_detail_keywords(ModelRc::from(keywords_model));
 
-    // Callbacks Handling
-    let window_weak = main_window.as_weak();
-    main_window.on_navigate(move |page| {
-        tracing::info!("Navigating to: {}", page);
-        if let Some(window) = window_weak.upgrade() {
-            window.set_active_page(page);
-        }
-    });
+    // Spawn Background Async Task to Fetch Live Trending Movies from API
+    {
+        let window_weak = main_window.as_weak();
+        let agg = aggregator.clone();
+        tokio::spawn(async move {
+            tracing::info!("Fetching live trending movies from primary API provider...");
+            match agg.get_home_trending().await {
+                Ok(live_movies) if !live_movies.is_empty() => {
+                    tracing::info!("Successfully fetched {} live movies from API!", live_movies.len());
+                    let slint_movies: Vec<MovieItem> = live_movies.iter().map(to_slint_movie_item).collect();
+                    let first = slint_movies.first().cloned();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = window_weak.upgrade() {
+                            if let Some(featured) = first {
+                                win.set_hero_movie(featured.clone());
+                                win.set_current_playing_movie(featured);
+                            }
+                            win.set_trending_movies(ModelRc::new(VecModel::from(slint_movies)));
+                        }
+                    });
+                }
+                Ok(_) => tracing::info!("API returned empty movies list."),
+                Err(e) => tracing::warn!("Live API fetch error (using fallback data): {}", e),
+            }
+        });
+    }
 
-    let window_weak = main_window.as_weak();
-    main_window.on_select_movie(move |slug| {
-        tracing::info!("Selected movie slug: {}", slug);
-        if let Some(window) = window_weak.upgrade() {
-            window.set_active_page(SharedString::from("Detail"));
-        }
-    });
+    // Callbacks
+    {
+        let window_weak = main_window.as_weak();
+        main_window.on_navigate(move |page| {
+            tracing::info!("Navigating to: {}", page);
+            if let Some(window) = window_weak.upgrade() {
+                window.set_active_page(page);
+            }
+        });
+    }
+
+    // Select Movie -> Fetch Details from Live API
+    {
+        let window_weak = main_window.as_weak();
+        let agg = aggregator.clone();
+        main_window.on_select_movie(move |slug| {
+            let slug_str = slug.to_string();
+            tracing::info!("User selected movie: {}", slug_str);
+            if let Some(window) = window_weak.upgrade() {
+                window.set_active_page(SharedString::from("Detail"));
+            }
+
+            let win_weak = window_weak.clone();
+            let agg_clone = agg.clone();
+            tokio::spawn(async move {
+                if let Ok(detail) = agg_clone.get_movie_detail(&slug_str).await {
+                    let slint_detail_movie = to_slint_movie_item(&detail.summary);
+                    let synopsis = SharedString::from(&detail.content);
+                    let director = SharedString::from(&detail.director);
+                    let actors: Vec<PersonItem> = detail.actors.iter().map(to_slint_person_item).collect();
+                    let episodes: Vec<EpisodeItem> = detail.episodes.iter().map(to_slint_episode_item).collect();
+                    let keywords: Vec<SharedString> = detail.keywords.iter().map(SharedString::from).collect();
+
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = win_weak.upgrade() {
+                            win.set_detail_movie(slint_detail_movie);
+                            win.set_detail_synopsis(synopsis);
+                            win.set_detail_director(director);
+                            win.set_detail_actors(ModelRc::new(VecModel::from(actors)));
+                            win.set_detail_episodes(ModelRc::new(VecModel::from(episodes)));
+                            win.set_detail_keywords(ModelRc::new(VecModel::from(keywords)));
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    // Search Query -> Fetch Live Search Results
+    {
+        let window_weak = main_window.as_weak();
+        let agg = aggregator.clone();
+        main_window.on_search_query(move |query| {
+            let q = query.to_string();
+            tracing::info!("Search query: {}", q);
+            if q.is_empty() { return; }
+
+            let win_weak = window_weak.clone();
+            let agg_clone = agg.clone();
+            tokio::spawn(async move {
+                if let Ok(results) = agg_clone.search_movies(&q, 1).await {
+                    let slint_results: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = win_weak.upgrade() {
+                            win.set_discover_movies(ModelRc::new(VecModel::from(slint_results)));
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    // Change Provider Callback
+    {
+        let window_weak = main_window.as_weak();
+        let agg = aggregator.clone();
+        main_window.on_change_provider(move |provider| {
+            let prov = provider.to_string();
+            tracing::info!("Switched API provider to: {}", prov);
+            if let Some(window) = window_weak.upgrade() {
+                window.set_current_provider(provider);
+            }
+
+            let agg_clone = agg.clone();
+            let win_weak = window_weak.clone();
+            tokio::spawn(async move {
+                agg_clone.set_active_provider(&prov).await;
+                if let Ok(movies) = agg_clone.get_home_trending().await {
+                    let slint_movies: Vec<MovieItem> = movies.iter().map(to_slint_movie_item).collect();
+                    let first = slint_movies.first().cloned();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = win_weak.upgrade() {
+                            if let Some(feat) = first {
+                                win.set_hero_movie(feat.clone());
+                                win.set_current_playing_movie(feat);
+                            }
+                            win.set_trending_movies(ModelRc::new(VecModel::from(slint_movies)));
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    // Filter Genre Callback
+    {
+        let window_weak = main_window.as_weak();
+        let agg = aggregator.clone();
+        main_window.on_filter_genre(move |genre_slug| {
+            let slug = genre_slug.to_string();
+            tracing::info!("Filter by genre: {}", slug);
+            let win_weak = window_weak.clone();
+            let agg_clone = agg.clone();
+            tokio::spawn(async move {
+                if let Ok(results) = agg_clone.get_movies_by_genre(&slug, 1).await {
+                    let slint_movies: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = win_weak.upgrade() {
+                            win.set_discover_movies(ModelRc::new(VecModel::from(slint_movies)));
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    // Filter Type Callback
+    {
+        let window_weak = main_window.as_weak();
+        let agg = aggregator.clone();
+        main_window.on_filter_type(move |movie_type| {
+            let t = movie_type.to_string();
+            tracing::info!("Filter by movie type: {}", t);
+            let win_weak = window_weak.clone();
+            let agg_clone = agg.clone();
+            tokio::spawn(async move {
+                if let Ok(results) = agg_clone.get_movies_by_category(&t, 1).await {
+                    let slint_movies: Vec<MovieItem> = results.items.iter().map(to_slint_movie_item).collect();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(win) = win_weak.upgrade() {
+                            win.set_discover_movies(ModelRc::new(VecModel::from(slint_movies)));
+                        }
+                    });
+                }
+            });
+        });
+    }
 
     main_window.on_play_movie(move |slug| {
         tracing::info!("Playing movie slug: {}", slug);
@@ -282,18 +446,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     main_window.on_toggle_watchlist(move |slug| {
         tracing::info!("Toggled watchlist for: {}", slug);
-    });
-
-    let window_weak = main_window.as_weak();
-    main_window.on_change_provider(move |provider| {
-        tracing::info!("Switched API provider to: {}", provider);
-        if let Some(window) = window_weak.upgrade() {
-            window.set_current_provider(provider);
-        }
-    });
-
-    main_window.on_search_query(move |query| {
-        tracing::info!("Search query: {}", query);
     });
 
     tracing::info!("Nolelamphim Desktop UI ready. Launching window...");
